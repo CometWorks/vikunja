@@ -27,19 +27,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The restore command exits the process on failure, so the test runs it in a child process.
-func TestRestoreCmdExitsNonZeroOnFailure(t *testing.T) {
-	if os.Getenv("VIKUNJA_TEST_RESTORE_CMD_CHILD") == "1" {
+// The commands exit the process on failure, so each case runs in a child process.
+func TestCmdExitsNonZeroOnFailure(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	commands := map[string]func(){
+		"dump": func() {
+			dumpPathFlag = missing
+			dumpCmd.Run(dumpCmd, nil)
+		},
+		"restore": func() {
+			restoreCmd.Run(restoreCmd, []string{filepath.Join(missing, "dump.zip")})
+		},
+	}
+
+	if name := os.Getenv("VIKUNJA_TEST_CMD_CHILD"); name != "" {
 		log.InitLogger()
-		restoreCmd.Run(restoreCmd, []string{filepath.Join(t.TempDir(), "missing.zip")})
+		commands[name]()
 		return
 	}
 
-	child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestRestoreCmdExitsNonZeroOnFailure$") //nolint:gosec // re-runs this test binary
-	child.Env = append(os.Environ(), "VIKUNJA_TEST_RESTORE_CMD_CHILD=1")
-	err := child.Run()
+	for name := range commands {
+		t.Run(name, func(t *testing.T) {
+			child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestCmdExitsNonZeroOnFailure$") //nolint:gosec // re-runs this test binary
+			child.Env = append(os.Environ(), "VIKUNJA_TEST_CMD_CHILD="+name)
+			err := child.Run()
 
-	var exitErr *exec.ExitError
-	require.ErrorAs(t, err, &exitErr)
-	assert.Equal(t, 1, exitErr.ExitCode())
+			var exitErr *exec.ExitError
+			require.ErrorAs(t, err, &exitErr)
+			assert.Equal(t, 1, exitErr.ExitCode())
+		})
+	}
 }
