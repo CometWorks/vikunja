@@ -39,7 +39,7 @@ var restoreCmd = &cobra.Command{
 	},
 	Run: func(_ *cobra.Command, args []string) {
 		if err := dump.Restore(args[0], !preserveConfig); err != nil {
-			log.Critical(err.Error())
+			log.Fatal(err.Error())
 		}
 	},
 }
