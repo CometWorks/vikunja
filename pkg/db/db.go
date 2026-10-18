@@ -734,5 +734,17 @@ func CreateParadeDBIndexes() error {
 		return fmt.Errorf("could not ensure paradedb task comment index: %w", err)
 	}
 
+	// Task search also matches the text of attachments
+	attachmentTextsIndexSQL := `CREATE INDEX IF NOT EXISTS idx_task_attachment_texts_paradedb ON task_attachment_texts USING bm25 (attachment_id, content)
+	WITH (
+		key_field='attachment_id',
+		text_fields='{
+			"content": {"fast": true, "record": "freq"}
+		}'
+	)`
+	if _, err := x.Exec(attachmentTextsIndexSQL); err != nil {
+		return fmt.Errorf("could not ensure paradedb attachment text index: %w", err)
+	}
+
 	return nil
 }

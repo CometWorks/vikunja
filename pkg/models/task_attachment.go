@@ -95,6 +95,13 @@ func (ta *TaskAttachment) NewAttachment(s *xorm.Session, f io.ReadSeeker, realna
 		return err
 	}
 
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	if err := saveAttachmentText(s, ta, f); err != nil {
+		return err
+	}
+
 	task, err := GetTaskByIDSimple(s, ta.TaskID)
 	if err != nil {
 		return err
@@ -445,6 +452,11 @@ func (ta *TaskAttachment) Delete(s *xorm.Session, a web.Auth) error {
 	_, err = s.
 		Where("task_id = ? AND id = ?", ta.TaskID, ta.ID).
 		Delete(ta)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.Where("attachment_id = ?", ta.ID).Delete(&TaskAttachmentText{})
 	if err != nil {
 		return err
 	}
