@@ -293,6 +293,10 @@ func restoreFile(id int64, zipFile *zip.File) error {
 }
 
 func convertFieldValue(fieldName string, value interface{}, isFloat bool) (interface{}, error) {
+	if value == nil {
+		return nil, nil
+	}
+
 	// Check if this is a float field and the value is already a number
 	if isFloat {
 		switch v := value.(type) {
@@ -351,12 +355,15 @@ func convertFieldValue(fieldName string, value interface{}, isFloat bool) (inter
 }
 
 func restoreTableData(tables map[string]*zip.File) error {
+	// Older Postgres dumps contain these columns base64 encoded. Current dumps write them as
+	// plain strings and numbers, so the lists don't need to grow with the schema.
 	jsonFields := map[string][]string{
 		"api_tokens":    {"permissions"},
 		"notifications": {"notification"},
 		"project_views": {"filter", "bucket_configuration"},
 		"saved_filters": {"filters"},
-		"users":         {"frontend_settings"},
+		"users":         {"frontend_settings", "extra_settings_links"},
+		"webhooks":      {"events"},
 	}
 
 	floatFields := map[string][]string{
@@ -364,6 +371,7 @@ func restoreTableData(tables map[string]*zip.File) error {
 		"project_views":  {"position"},
 		"projects":       {"position"},
 		"task_positions": {"position"},
+		"tasks":          {"percent_done"},
 	}
 
 	// Restore all db data

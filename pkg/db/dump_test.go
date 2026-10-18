@@ -17,6 +17,7 @@
 package db
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -70,11 +71,13 @@ func TestParseDumpTime(t *testing.T) {
 }
 
 type dumpRestoreTest struct {
-	ID      int64     `xorm:"autoincr not null unique pk"`
-	Title   string    `xorm:"varchar(250)"`
-	Created time.Time `xorm:"not null"`
-	Updated time.Time `xorm:""`
-	Done    bool      `xorm:"bool default false"`
+	ID       int64          `xorm:"autoincr not null unique pk"`
+	Title    string         `xorm:"varchar(250)"`
+	Created  time.Time      `xorm:"not null"`
+	Updated  time.Time      `xorm:""`
+	Done     bool           `xorm:"bool default false"`
+	Position float64        `xorm:"double null"`
+	Settings map[string]any `xorm:"json null"`
 }
 
 func TestRestore(t *testing.T) {
@@ -139,6 +142,36 @@ func TestRestore(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, has)
 		assert.False(t, notDone.Done)
+	})
+
+	t.Run("restore a dump of the table", func(t *testing.T) {
+		_, err := engine.Where("1 = 1").Delete(&dumpRestoreTest{})
+		require.NoError(t, err)
+		created := time.Date(2026, 3, 27, 11, 27, 1, 0, time.UTC)
+		_, err = engine.Insert([]*dumpRestoreTest{
+			{ID: 6, Title: "with settings", Created: created, Position: 1.5, Settings: map[string]any{"theme": "dark"}},
+			{ID: 7, Title: "without settings", Created: created},
+		})
+		require.NoError(t, err)
+
+		metas, err := tableMetas()
+		require.NoError(t, err)
+		dumped, err := dumpTable("dump_restore_test", metas["dump_restore_test"])
+		require.NoError(t, err)
+
+		// Restore reads the dump back the same way
+		contents := []map[string]interface{}{}
+		require.NoError(t, json.Unmarshal(dumped, &contents))
+		require.NoError(t, RestoreAndTruncate("dump_restore_test", contents))
+
+		restored := []*dumpRestoreTest{}
+		require.NoError(t, engine.OrderBy("id").Find(&restored))
+		require.Len(t, restored, 2)
+		assert.InDelta(t, 1.5, restored[0].Position, 0)
+		assert.Equal(t, map[string]any{"theme": "dark"}, restored[0].Settings)
+		assert.Equal(t, created.Unix(), restored[0].Created.Unix())
+		assert.InDelta(t, 0, restored[1].Position, 0)
+		assert.Nil(t, restored[1].Settings)
 	})
 
 	t.Run("invalid time value", func(t *testing.T) {
