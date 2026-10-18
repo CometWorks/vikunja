@@ -78,6 +78,8 @@ type dumpRestoreTest struct {
 	Done     bool           `xorm:"bool default false"`
 	Position float64        `xorm:"double null"`
 	Settings map[string]any `xorm:"json null"`
+	ParentID *int64         `xorm:"bigint null"`
+	Token    *string        `xorm:"varchar(64) null"`
 }
 
 func TestRestore(t *testing.T) {
@@ -148,9 +150,30 @@ func TestRestore(t *testing.T) {
 		_, err := engine.Where("1 = 1").Delete(&dumpRestoreTest{})
 		require.NoError(t, err)
 		created := time.Date(2026, 3, 27, 11, 27, 1, 0, time.UTC)
+		parentID, zeroID := int64(5), int64(0)
+		token, emptyToken := "abc", ""
 		_, err = engine.Insert([]*dumpRestoreTest{
-			{ID: 6, Title: "with settings", Created: created, Position: 1.5, Settings: map[string]any{"theme": "dark"}},
-			{ID: 7, Title: "without settings", Created: created},
+			{
+				ID:       6,
+				Title:    "with settings",
+				Created:  created,
+				Position: 1.5,
+				Settings: map[string]any{"theme": "dark"},
+				ParentID: &parentID,
+				Token:    &token,
+			},
+			{
+				ID:      7,
+				Title:   "without settings",
+				Created: created,
+			},
+			{
+				ID:       8,
+				Title:    "zero values",
+				Created:  created,
+				ParentID: &zeroID,
+				Token:    &emptyToken,
+			},
 		})
 		require.NoError(t, err)
 
@@ -166,12 +189,18 @@ func TestRestore(t *testing.T) {
 
 		restored := []*dumpRestoreTest{}
 		require.NoError(t, engine.OrderBy("id").Find(&restored))
-		require.Len(t, restored, 2)
+		require.Len(t, restored, 3)
 		assert.InDelta(t, 1.5, restored[0].Position, 0)
 		assert.Equal(t, map[string]any{"theme": "dark"}, restored[0].Settings)
 		assert.Equal(t, created.Unix(), restored[0].Created.Unix())
+		assert.Equal(t, &parentID, restored[0].ParentID)
+		assert.Equal(t, &token, restored[0].Token)
 		assert.InDelta(t, 0, restored[1].Position, 0)
 		assert.Nil(t, restored[1].Settings)
+		assert.Nil(t, restored[1].ParentID)
+		assert.Nil(t, restored[1].Token)
+		assert.Equal(t, &zeroID, restored[2].ParentID)
+		assert.Equal(t, &emptyToken, restored[2].Token)
 	})
 
 	t.Run("invalid time value", func(t *testing.T) {

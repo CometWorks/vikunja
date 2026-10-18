@@ -92,9 +92,32 @@ func Dump() (data map[string][]byte, err error) {
 }
 
 func dumpTable(name string, meta *schemas.Table) ([]byte, error) {
+	// xorm scans nullable int and text columns into sql.NullInt64 and sql.NullString and
+	// returns 0 or "" for NULL, so every nullable column gets an IS NULL flag next to it.
+	nullFlags := map[string]string{}
+	selects := []string{"*"}
+	for _, col := range meta.Columns() {
+		if !col.Nullable {
+			continue
+		}
+		flag := fmt.Sprintf("vikunja_dump_is_null_%d", len(nullFlags))
+		nullFlags[flag] = col.Name
+		selects = append(selects, x.Quote(col.Name)+" IS NULL AS "+flag)
+	}
+
 	entries := []map[string]interface{}{}
-	if err := x.Table(name).Find(&entries); err != nil {
+	if err := x.Table(name).Select(strings.Join(selects, ", ")).Find(&entries); err != nil {
 		return nil, err
+	}
+
+	for _, entry := range entries {
+		for flag, colName := range nullFlags {
+			// The flag comes back as a bool (postgres), an int (mysql) or a string (sqlite).
+			if isNull := fmt.Sprint(entry[flag]); isNull == "true" || isNull == "1" {
+				entry[colName] = nil
+			}
+			delete(entry, flag)
+		}
 	}
 
 	// xorm hands back column types it has no scan type for as raw bytes, which json.Marshal
