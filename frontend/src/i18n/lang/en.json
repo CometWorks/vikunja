@@ -1164,6 +1164,14 @@
         "delete": "Delete",
         "favorite": "Add to Favorites",
         "unfavorite": "Remove from Favorites"
+      },
+      "conflict": {
+        "title": "Changed by someone else",
+        "text": "{field} was changed by someone else while you were editing it. Which version do you want to keep?",
+        "theirs": "Their version",
+        "mine": "Your version",
+        "useTheirs": "Use their version",
+        "keepMine": "Keep my version"
       }
     },
     "attributes": {

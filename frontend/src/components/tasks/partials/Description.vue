@@ -47,6 +47,16 @@
 			@update:modelValue="saveWithDelay"
 			@save="save"
 		/>
+		<EditConflictModal
+			v-if="conflictOpen"
+			:enabled="true"
+			:field="$t('task.attributes.description')"
+			:theirs="modelValue.description ?? ''"
+			:mine="description"
+			@keepMine="keepMine"
+			@useTheirs="useTheirs"
+			@cancel="conflictOpen = false"
+		/>
 	</div>
 </template>
 
@@ -57,6 +67,7 @@ import {useI18n} from 'vue-i18n'
 
 import CustomTransition from '@/components/misc/CustomTransition.vue'
 import Editor from '@/components/input/AsyncEditor'
+import EditConflictModal from '@/components/tasks/partials/EditConflictModal.vue'
 
 import { clearEditorDraft } from '@/helpers/editorDraftStorage'
 import { isEditorContentEmpty } from '@/helpers/editorContentEmpty'
@@ -76,11 +87,16 @@ const emit = defineEmits<{
 
 const description = ref<string>('')
 const hasChanges = ref(false)
+// The server's description when the local edit started. Changes streamed in
+// while editing do not replace the edit, saving asks which version to keep.
+const baseDescription = ref('')
+const conflictOpen = ref(false)
 watch(
 	() => [props.modelValue.id, props.modelValue.description] as const,
 	([id, value], previous) => {
 		if (id === previous?.[0] && hasChanges.value) return
 		description.value = value ?? ''
+		baseDescription.value = value ?? ''
 		hasChanges.value = false
 	},
 	{immediate: true},
@@ -197,6 +213,12 @@ async function save() {
 		return
 	}
 
+	const theirs = props.modelValue.description ?? ''
+	if (theirs !== baseDescription.value && theirs !== description.value) {
+		conflictOpen.value = true
+		return
+	}
+
 	hasChanges.value = false
 	if (changeTimeout.value !== null) {
 		clearTimeout(changeTimeout.value)
@@ -211,6 +233,7 @@ async function save() {
 			description: description.value,
 		})
 		emit('update:modelValue', updated)
+		baseDescription.value = description.value
 
 		// Clear draft from localStorage when saved successfully
 		clearEditorDraft(descriptionStorageKey.value)
@@ -227,6 +250,23 @@ async function save() {
 	} finally {
 		saving.value = false
 	}
+}
+
+async function keepMine() {
+	conflictOpen.value = false
+	baseDescription.value = props.modelValue.description ?? ''
+	await save()
+}
+
+function useTheirs() {
+	conflictOpen.value = false
+	if (changeTimeout.value !== null) {
+		clearTimeout(changeTimeout.value)
+	}
+	description.value = props.modelValue.description ?? ''
+	baseDescription.value = description.value
+	hasChanges.value = false
+	clearEditorDraft(descriptionStorageKey.value)
 }
 
 // the editor toasts the rejection itself, a mutation toast would duplicate it

@@ -165,6 +165,8 @@ it('unsubscribes every event when the scope is disposed', () => {
 		'timer.updated',
 		'timer.deleted',
 		'notification.created',
+		'task.changed',
+		'comment.changed',
 	])
 	wrapper.unmount()
 	expect(ws.unsubscribed).toEqual([
@@ -172,5 +174,7 @@ it('unsubscribes every event when the scope is disposed', () => {
 		'timer.updated',
 		'timer.deleted',
 		'notification.created',
+		'task.changed',
+		'comment.changed',
 	])
 })

@@ -654,6 +654,7 @@ import {useRouter, useRoute, type RouteLocation, onBeforeRouteLeave} from 'vue-r
 import {useI18n} from 'vue-i18n'
 import {unrefElement, useDebounceFn, useElementSize, useIntersectionObserver, useMutationObserver} from '@vueuse/core'
 import {klona} from 'klona/lite'
+import isEqual from 'fast-deep-equal'
 
 import {useTask} from '@/composables/useTask'
 import {getHexColor} from '@/helpers/task'
@@ -765,24 +766,36 @@ const taskQuery = useTask(
 )
 const task = ref(createTaskDraft())
 
-// Only fields edited here stay local; the rest follows the cache.
+const LOCALLY_EDITED_FIELDS = [
+	'priority',
+	'percent_done',
+	'due_date',
+	'start_date',
+	'end_date',
+	'reminders',
+	'repeat_after',
+	'repeat_mode',
+] as const
+
+// The server copy the draft was last synced with, to tell unsaved edits from stale values.
+let syncedTask = createTaskDraft()
+
+// Fields with an unsaved edit here stay local, everything else follows the cache,
+// which streams in changes made by others.
 function followServerFields(loaded: ITask) {
-	const {priority, percent_done, due_date, start_date, end_date, reminders, repeat_after, repeat_mode} = task.value
-	task.value = {
-		...createTaskDraft(klona(loaded)),
-		priority,
-		percent_done,
-		due_date,
-		start_date,
-		end_date,
-		reminders,
-		repeat_after,
-		repeat_mode,
+	const next = createTaskDraft(klona(loaded))
+	for (const field of LOCALLY_EDITED_FIELDS) {
+		if (!isEqual(task.value[field], syncedTask[field])) {
+			(next as Record<string, unknown>)[field] = task.value[field]
+		}
 	}
+	task.value = next
+	syncedTask = createTaskDraft(klona(loaded))
 }
 
 function seedTask(loaded: ITask) {
 	task.value = createTaskDraft(klona(loaded))
+	syncedTask = createTaskDraft(klona(loaded))
 	taskColor.value = task.value.hex_color ?? ''
 }
 

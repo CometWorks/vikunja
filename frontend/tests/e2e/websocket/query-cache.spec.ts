@@ -12,7 +12,7 @@ import {UserProjectFactory} from '../../factories/users_project'
 import {TEST_PASSWORD} from '../../support/constants'
 
 // Subscriptions are sent in one batch after auth, so the last event of the set proves all of them arrived.
-const LAST_SUBSCRIBED_EVENT = 'notification.created'
+const LAST_SUBSCRIBED_EVENT = 'comment.changed'
 
 function waitForSubscription(page: Page, event: string) {
 	return page.waitForEvent('websocket').then(socket => socket.waitForEvent('framesent', {

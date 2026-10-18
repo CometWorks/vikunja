@@ -79,6 +79,23 @@ func (h *Hub) DisconnectUser(userID int64) {
 	}
 }
 
+// SubscribedUserIDs returns the users with at least one connection subscribed to the event.
+func (h *Hub) SubscribedUserIDs(event string) []int64 {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	ids := []int64{}
+	for userID, conns := range h.connections {
+		for _, conn := range conns {
+			if conn.IsSubscribed(event) {
+				ids = append(ids, userID)
+				break
+			}
+		}
+	}
+	return ids
+}
+
 // PublishForUser sends an event to all connections of a specific user that are subscribed to the given event.
 func (h *Hub) PublishForUser(userID int64, event string, data any) {
 	h.mu.RLock()

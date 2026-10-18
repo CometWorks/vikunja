@@ -3,7 +3,7 @@ import {
 	type QueryClient,
 	type QueryKey,
 } from '@tanstack/vue-query'
-import type {TimeEntry} from '@/client/generated'
+import {tasksRead, type TimeEntry} from '@/client/generated'
 import {contextMutationOptions} from './contextMutation'
 import {
 	cachedTaskIdOf,
@@ -18,14 +18,19 @@ import {commentKeys} from './comments'
 import {taskKeys} from './tasks'
 import {
 	invalidateTaskMembership,
+	removeTaskEverywhere,
+	replaceTaskEverywhere,
 	taskQueryKeys,
 } from './taskCache'
+import {placeTaskOnBoards} from './taskMutations'
 
 export const CACHE_EVENTS = [
 	'timer.created',
 	'timer.updated',
 	'timer.deleted',
 	'notification.created',
+	'task.changed',
+	'comment.changed',
 ] as const
 
 export type ServerCacheEventName = typeof CACHE_EVENTS[number]
@@ -39,6 +44,10 @@ export type ServerCacheEvent =
 	| {
 		kind: 'notifications',
 		taskId?: number,
+	}
+	| {
+		kind: 'task' | 'comment',
+		taskId: number,
 	}
 	| {
 		kind: 'subscribed',
@@ -63,6 +72,13 @@ export function parseServerCacheEvent(
 		return {
 			kind: event,
 			entry: normalizeTimeEntry(data as TimeEntry),
+		}
+	}
+	if (event === 'task.changed' || event === 'comment.changed') {
+		if (typeof data.task_id !== 'number' || data.task_id <= 0) return null
+		return {
+			kind: event === 'task.changed' ? 'task' : 'comment',
+			taskId: data.task_id,
 		}
 	}
 	if (event === 'notification.created') {
@@ -97,6 +113,27 @@ async function invalidateCachedTask(client: QueryClient, taskId: number | undefi
 	])
 }
 
+// Someone changed a task: patch the fresh copy into every cached view. Boards are
+// patched instead of refetched, a refetch would drop the bucket pages loaded so far.
+async function applyRemoteTaskChange(client: QueryClient, taskId: number): Promise<void> {
+	try {
+		const task = (await tasksRead({path: {task: taskId}, query: {expand: ['buckets']}})).data
+		replaceTaskEverywhere(client, task)
+		placeTaskOnBoards(client, task)
+	} catch (cause) {
+		const status = (cause as {status?: number} | null)?.status
+		if (status !== 403 && status !== 404) throw cause
+		// Deleted, or moved somewhere this user cannot read.
+		removeTaskEverywhere(client, taskId)
+	}
+	await Promise.all([
+		client.invalidateQueries({queryKey: [...taskKeys.details, taskId]}),
+		// Filters and sorting decide list membership, only the server knows the new order.
+		client.invalidateQueries({queryKey: taskKeys.lists}),
+		client.invalidateQueries({queryKey: taskKeys.allLists}),
+	])
+}
+
 export function serverCacheEventMutationOptions() {
 	return contextMutationOptions({
 		mutationFn: async (event: ServerCacheEvent) => event,
@@ -111,6 +148,14 @@ export function serverCacheEventMutationOptions() {
 					...(event.kind === 'timer.created' ? [client.invalidateQueries({queryKey: timeEntryKeys.lists})] : []),
 					invalidateCachedTask(client, event.entry.task_id),
 					...(previousTaskId === event.entry.task_id ? [] : [invalidateCachedTask(client, previousTaskId)]),
+				])
+			}
+			if (event.kind === 'task') return applyRemoteTaskChange(client, event.taskId)
+			if (event.kind === 'comment') {
+				return Promise.all([
+					client.invalidateQueries({queryKey: commentKeys.task(event.taskId)}),
+					// The comment count lives on the task.
+					client.invalidateQueries({queryKey: [...taskKeys.details, event.taskId]}),
 				])
 			}
 			if (event.kind === 'notifications') {

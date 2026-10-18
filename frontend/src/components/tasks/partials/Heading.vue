@@ -36,8 +36,18 @@
 			@keydown.enter.prevent.stop="!$event.isComposing && ($event.target as HTMLInputElement).blur()"
 			@keydown.esc.prevent.stop="!$event.isComposing && cancel($event.target as HTMLInputElement)"
 		>
-			{{ (task.title ?? '').trim() }}
+			{{ shownTitle }}
 		</h1>
+		<EditConflictModal
+			v-if="conflictElement !== null"
+			:enabled="true"
+			:field="$t('task.attributes.title')"
+			:theirs="task.title ?? ''"
+			:mine="conflictElement?.textContent ?? ''"
+			@keepMine="keepMine"
+			@useTheirs="useTheirs"
+			@cancel="conflictElement = null"
+		/>
 		<CustomTransition name="fade">
 			<span
 				v-if="loading && saving"
@@ -70,6 +80,7 @@ import BaseButton from '@/components/base/BaseButton.vue'
 import CustomTransition from '@/components/misc/CustomTransition.vue'
 import ColorBubble from '@/components/misc/ColorBubble.vue'
 import Done from '@/components/misc/Done.vue'
+import EditConflictModal from '@/components/tasks/partials/EditConflictModal.vue'
 
 import {useCopyToClipboard} from '@/composables/useCopyToClipboard'
 import {useDelayedLoading} from '@/composables/useDelayedLoading'
@@ -135,6 +146,21 @@ watch(() => props.task.id, () => {
 	titleHasChanges.value = false
 })
 
+// The title shown while editing stays as typed. Changes streamed in meanwhile
+// only move the server's title, saving then asks which version to keep.
+const shownTitle = ref('')
+const baseTitle = ref('')
+const conflictElement = ref<HTMLElement | null>(null)
+watch(
+	() => [props.task.id, props.task.title] as const,
+	([id, title], previous) => {
+		if (id === previous?.[0] && titleHasChanges.value) return
+		shownTitle.value = (title ?? '').trim()
+		baseTitle.value = title ?? ''
+	},
+	{immediate: true},
+)
+
 function handleTitleInput(event: Event) {
 	const target = event.target as HTMLInputElement
 	titleHasChanges.value = target.textContent !== (props.task.title ?? '')
@@ -154,6 +180,12 @@ async function save(element: HTMLElement) {
 	// We only want to save if the title was actually changed.
 	// so we only continue if the task title changed.
 	if (title === props.task.title) {
+		titleHasChanges.value = false
+		return
+	}
+
+	if (props.task.title !== baseTitle.value) {
+		conflictElement.value = element
 		return
 	}
 
@@ -166,6 +198,7 @@ async function save(element: HTMLElement) {
 		})
 		emit('update:task', newTask)
 		titleHasChanges.value = false
+		baseTitle.value = newTask.title ?? title
 		showSavedMessage.value = true
 		setTimeout(() => {
 			showSavedMessage.value = false
@@ -173,6 +206,23 @@ async function save(element: HTMLElement) {
 	} finally {
 		saving.value = false
 	}
+}
+
+async function keepMine() {
+	const element = conflictElement.value
+	conflictElement.value = null
+	if (!element) return
+	baseTitle.value = props.task.title ?? ''
+	await save(element)
+}
+
+function useTheirs() {
+	const element = conflictElement.value
+	conflictElement.value = null
+	if (element) element.textContent = props.task.title ?? ''
+	shownTitle.value = (props.task.title ?? '').trim()
+	baseTitle.value = props.task.title ?? ''
+	titleHasChanges.value = false
 }
 
 async function cancel(element: HTMLInputElement) {
