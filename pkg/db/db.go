@@ -722,5 +722,17 @@ func CreateParadeDBIndexes() error {
 		return fmt.Errorf("could not ensure paradedb label index: %w", err)
 	}
 
+	// Task search also matches task comments
+	taskCommentsIndexSQL := `CREATE INDEX IF NOT EXISTS idx_task_comments_paradedb ON task_comments USING bm25 (id, comment)
+	WITH (
+		key_field='id',
+		text_fields='{
+			"comment": {"fast": true, "record": "freq"}
+		}'
+	)`
+	if _, err := x.Exec(taskCommentsIndexSQL); err != nil {
+		return fmt.Errorf("could not ensure paradedb task comment index: %w", err)
+	}
+
 	return nil
 }

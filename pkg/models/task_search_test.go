@@ -356,3 +356,85 @@ func TestDBTaskSearcher_NoScopeReturnsNothing(t *testing.T) {
 	assert.Empty(t, tasks)
 	assert.Zero(t, count)
 }
+
+// TestTaskSearchComments covers matching a task through the text of its comments.
+func TestTaskSearchComments(t *testing.T) {
+	db.LoadAndAssertFixtures(t)
+	s := db.NewSession()
+	defer s.Close()
+
+	usr := &user.User{ID: 1}
+
+	addComment := func(taskID int64, text string) {
+		_, err := s.Insert(&TaskComment{Comment: text, AuthorID: usr.ID, TaskID: taskID})
+		require.NoError(t, err)
+	}
+
+	commented := &Task{Title: "quarterly planning", ProjectID: 1}
+	require.NoError(t, commented.Create(s, usr))
+	addComment(commented.ID, "<p>The zebrafish shipment is late</p>")
+
+	titled := &Task{Title: "zebrafish shipment tracking", ProjectID: 1}
+	require.NoError(t, titled.Create(s, usr))
+
+	// Task 13 lives in project 2, which user 1 cannot read.
+	addComment(13, "zebrafish in another project")
+
+	t.Run("comment-only match is returned", func(t *testing.T) {
+		pos := searchTaskPositions(t, s, usr, &TaskCollection{ProjectID: 1}, "zebrafish")
+		assert.Contains(t, pos, commented.ID)
+		assert.Contains(t, pos, titled.ID)
+	})
+
+	t.Run("comments of unreadable tasks do not leak", func(t *testing.T) {
+		pos := searchTaskPositions(t, s, usr, &TaskCollection{}, "zebrafish")
+		assert.Contains(t, pos, commented.ID)
+		assert.NotContains(t, pos, int64(13))
+	})
+
+	t.Run("non-matching comment is ignored", func(t *testing.T) {
+		pos := searchTaskPositions(t, s, usr, &TaskCollection{ProjectID: 1}, "xylophone")
+		assert.NotContains(t, pos, commented.ID)
+	})
+
+	// The comment arm must not break relevance ranking: the title match words
+	// rank above the task that only matches through a comment.
+	t.Run("relevance ranking survives a comment match", func(t *testing.T) {
+		pos := searchTaskPositions(t, s, usr, &TaskCollection{ProjectID: 1}, "zebrafish shipment")
+		require.Contains(t, pos, commented.ID)
+		require.Contains(t, pos, titled.ID)
+		if db.ParadeDBAvailable() {
+			assert.Less(t, pos[titled.ID], pos[commented.ID])
+		}
+	})
+}
+
+// TestTaskCollection_ExpandSubtasksSearchMirrorComments: a parent matching the
+// search only through a comment keeps its child nested instead of a second root.
+func TestTaskCollection_ExpandSubtasksSearchMirrorComments(t *testing.T) {
+	u := &user.User{ID: 1}
+
+	project, parent, sub := setupSubtaskExpansionFixture(t, u, "search-comment-parent", func(parent, sub *Task) {
+		parent.Title = "errands"
+		sub.Title = "okapi subtask"
+	})
+
+	s := db.NewSession()
+	defer s.Close()
+	_, err := s.Insert(&TaskComment{Comment: "okapi sighting", AuthorID: u.ID, TaskID: parent.ID})
+	require.NoError(t, err)
+
+	tasks, _, total, err := getRawTasksForProjects(s, []*Project{project}, u, &taskSearchOptions{
+		expand: []TaskCollectionExpandable{TaskCollectionExpandSubtasks},
+		search: "okapi",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(1), total, "the comment-matched parent is the only root")
+	ids := map[int64]int{}
+	for _, tsk := range tasks {
+		ids[tsk.ID]++
+	}
+	assert.Equal(t, 1, ids[parent.ID])
+	assert.Equal(t, 1, ids[sub.ID], "child nests under the parent, not as a second root")
+}

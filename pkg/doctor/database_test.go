@@ -126,7 +126,7 @@ func TestCheckParadeDB_SystemCatalogs(t *testing.T) {
 			assert.Regexp(t, `^pg_search \d+\.\d+\.\d+`, results[0].Value)
 			assert.Equal(t, "ParadeDB indexes", results[1].Name)
 			if results[1].Passed {
-				assert.Equal(t, "3 present", results[1].Value)
+				assert.Equal(t, "4 present", results[1].Value)
 				assert.Empty(t, results[1].Error)
 			} else {
 				assert.True(t, strings.HasPrefix(results[1].Error, "missing: idx_"), results[1].Error)

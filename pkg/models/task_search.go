@@ -387,7 +387,7 @@ func stripBucketIDFilters(filters []*taskFilter) []*taskFilter {
 // A correlated NOT EXISTS (rather than NOT over LEFT JOINs) keeps SQL three-valued
 // logic from dropping the child: a NULL predicate inside EXISTS yields no row, so
 // the whole thing collapses to a clean FALSE and the child stays a root.
-func (d *dbTaskSearcher) buildSubtaskRootCondition(opts *taskSearchOptions) (builder.Cond, error) {
+func (d *dbTaskSearcher) buildSubtaskRootCondition(opts *taskSearchOptions, commentMatches []int64) (builder.Cond, error) {
 	// The base result set is (projectIDCond OR favoritesCond); mirror both so the
 	// parent is considered "in scope" exactly when it could appear as a result row.
 	scopes := make([]builder.Cond, 0, 2)
@@ -433,7 +433,7 @@ func (d *dbTaskSearcher) buildSubtaskRootCondition(opts *taskSearchOptions) (bui
 		}
 	}
 
-	if searchCond := buildParentSearchCondition(opts.search); searchCond != nil {
+	if searchCond := buildParentSearchCondition(opts.search, commentMatches); searchCond != nil {
 		predicates = append(predicates, searchCond)
 	}
 
@@ -491,14 +491,81 @@ func (d *dbTaskSearcher) fetchAccessibleSubtasks(rootIDs []int64) ([]*Task, erro
 	return subtasks, nil
 }
 
+// isTaskIndexSearch tells whether the search names a task number (#17). Such a
+// search is about the task itself, not about what its comments say.
+func isTaskIndexSearch(search string) bool {
+	return getTaskIndexFromSearchString(search) > 0
+}
+
+// taskCommentSearchCond matches tasks (under taskAlias) that have a comment
+// containing the search. ParadeDB rejects a correlated subquery next to its |||
+// arms as an unsupported query shape, but accepts and still scores a literal id
+// list, so there the matches come pre-resolved from findTasksWithMatchingComments.
+func taskCommentSearchCond(search, taskAlias string, paradeDBMatches []int64) builder.Cond {
+	if isTaskIndexSearch(search) {
+		return nil
+	}
+	if db.ParadeDBAvailable() {
+		if len(paradeDBMatches) == 0 {
+			return nil
+		}
+		return builder.In(taskAlias+".id", paradeDBMatches)
+	}
+	return builder.Exists(builder.
+		Select("1").
+		From("task_comments").
+		Where(builder.And(
+			builder.Expr("task_comments.task_id = "+taskAlias+".id"),
+			db.ILIKE("task_comments.comment", search),
+		)))
+}
+
+// findTasksWithMatchingComments returns the ids of tasks in the search scope that
+// have a comment matching the search. Only ParadeDB needs it, see taskCommentSearchCond.
+//
+// ponytail: the id list grows with the number of matching tasks, which is fine for
+// team-sized instances. If it gets too long, match comments in a second query and
+// merge the results instead.
+func (d *dbTaskSearcher) findTasksWithMatchingComments(opts *taskSearchOptions) ([]int64, error) {
+	if !db.ParadeDBAvailable() || opts.search == "" || isTaskIndexSearch(opts.search) {
+		return nil, nil
+	}
+
+	scope := builder.In("tasks.project_id", opts.projectIDs)
+	if d.hasFavoritesProject {
+		// Favorites can live outside opts.projectIDs, every readable project covers both.
+		accessible, err := accessibleProjectIDsCond(d.s, d.a, "tasks.project_id")
+		if err != nil {
+			return nil, err
+		}
+		scope = accessible
+	}
+
+	ids := []int64{}
+	err := d.s.
+		Table("task_comments").
+		Join("INNER", "tasks", "tasks.id = task_comments.task_id").
+		Where(builder.And(
+			scope,
+			taskNotDeletedCond("tasks"),
+			db.MultiFieldSearchWithTableAlias([]string{"comment"}, opts.search, "task_comments"),
+		)).
+		Distinct("task_comments.task_id").
+		Find(&ids)
+	return ids, err
+}
+
 // buildParentSearchCondition mirrors the main query's search onto the parent_tasks
 // alias so an active search decides root membership the same way it decides the
 // result set. No boosts: they only affect scoring, membership is identical without them.
-func buildParentSearchCondition(search string) builder.Cond {
+func buildParentSearchCondition(search string, commentMatches []int64) builder.Cond {
 	if search == "" {
 		return nil
 	}
-	cond := db.MultiFieldSearchWithTableAlias([]string{"title", "description"}, search, "parent_tasks")
+	cond := builder.Or(
+		db.MultiFieldSearchWithTableAlias([]string{"title", "description"}, search, "parent_tasks"),
+		taskCommentSearchCond(search, "parent_tasks", commentMatches),
+	)
 	if searchIndex := getTaskIndexFromSearchString(search); searchIndex > 0 {
 		cond = builder.Or(cond, builder.Eq{"parent_tasks.`index`": searchIndex})
 	}
@@ -518,12 +585,17 @@ func (d *dbTaskSearcher) Search(opts *taskSearchOptions) (tasks []*Task, totalCo
 		}
 	}
 
+	commentMatches, err := d.findTasksWithMatchingComments(opts)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	// The root condition asks whether a task's parent is part of this result set,
 	// which means re-building the filter against the parent_tasks alias. Compute it
 	// before convertFiltersToDBFilterCond mutates the shared filter field names.
 	var subtaskRootCond builder.Cond
 	if expandSubtasks {
-		subtaskRootCond, err = d.buildSubtaskRootCondition(opts)
+		subtaskRootCond, err = d.buildSubtaskRootCondition(opts, commentMatches)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -544,7 +616,10 @@ func (d *dbTaskSearcher) Search(opts *taskSearchOptions) (tasks []*Task, totalCo
 		// times the field's boost. Boosting titles 1.5x keeps "more matched words
 		// wins": two description words (2.0) still beat a single title word (1.5),
 		// the boost only decides between tasks matching the same number of words.
-		where = db.MultiFieldSearchWithBoosts([]string{"title", "description"}, []float64{1.5, 1}, opts.search, "tasks")
+		where = builder.Or(
+			db.MultiFieldSearchWithBoosts([]string{"title", "description"}, []float64{1.5, 1}, opts.search, "tasks"),
+			taskCommentSearchCond(opts.search, "tasks", commentMatches),
+		)
 
 		if searchIndex > 0 {
 			where = builder.Or(where, builder.Eq{"tasks.`index`": searchIndex})
