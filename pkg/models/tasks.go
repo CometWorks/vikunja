@@ -2224,6 +2224,11 @@ func hardDeleteTask(s *xorm.Session, t *Task) (err error) {
 		return err
 	}
 
+	err = deleteTaskEmbeddings(s, t.ID)
+	if err != nil {
+		return err
+	}
+
 	commentIDs := []int64{}
 	err = s.Table("task_comments").Where("task_id = ?", t.ID).Cols("id").Find(&commentIDs)
 	if err != nil {

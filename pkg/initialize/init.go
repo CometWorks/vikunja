@@ -79,6 +79,11 @@ func InitEngines() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+
+	err = models.InitSemanticSearch()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
 
 // FullInitWithoutAsync does a full init without any async handlers (cron or events)
@@ -141,6 +146,7 @@ func FullInit() {
 	models.RegisterUserDeletionCron()
 	models.RegisterTaskCleanupCron()
 	models.RegisterAttachmentTextIndexCron()
+	models.RegisterTaskEmbeddingCron()
 	models.RegisterOldExportCleanupCron()
 	migrationmodule.RegisterImportUploadCleanupCron()
 	models.RegisterAddTaskToFilterViewCron()

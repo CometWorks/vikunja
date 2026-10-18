@@ -1053,6 +1053,36 @@
             ]
         },
         {
+            "key": "semanticsearch",
+            "children": [
+                {
+                    "key": "enabled",
+                    "default_value": "false",
+                    "comment": "Whether task search also finds tasks that are close in meaning to the search. Vikunja vectorizes the title, description and comments of every task with an embedding model and stores the vectors in PostgreSQL. Requires PostgreSQL with the pgvector extension; Vikunja runs `CREATE EXTENSION IF NOT EXISTS vector` on startup, so either give its database user the privilege or create the extension yourself."
+                },
+                {
+                    "key": "url",
+                    "default_value": "https://api.openai.com/v1",
+                    "comment": "The base URL of an OpenAI-compatible embeddings API. Vikunja posts to `\u003curl\u003e/embeddings`. Works with OpenAI, Ollama (`http://localhost:11434/v1`), LM Studio, vLLM, LocalAI and similar."
+                },
+                {
+                    "key": "apikey",
+                    "default_value": "",
+                    "comment": "The API key sent as a bearer token. Leave empty if the API does not need one."
+                },
+                {
+                    "key": "model",
+                    "default_value": "text-embedding-3-small",
+                    "comment": "The embedding model. Changing it makes Vikunja vectorize all tasks again in the background."
+                },
+                {
+                    "key": "maxdistance",
+                    "default_value": "0.6",
+                    "comment": "The largest cosine distance (0 to 2) at which a task still counts as a match. Lower values return fewer, closer matches. The right value depends heavily on the model, so tune it with a few searches. In our tests nomic-embed-text kept matches (0.47 and below) apart from unrelated tasks (0.56 and up) at 0.5, while all-minilm mixed them between 0.76 and 0.82, so no value worked well for it. The default is a starting point for text-embedding-3-small."
+                }
+            ]
+        },
+        {
             "key": "audit",
             "comment": "Audit logging writes structured JSONL records of authentication, authorization and data lifecycle events. Requires the licensed `audit_logs` feature — with `audit.enabled: true` but no active license, listeners are registered but nothing is written until a license with the feature becomes active.",
             "children": [
