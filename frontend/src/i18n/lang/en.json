@@ -588,6 +588,8 @@
     "kanban": {
       "title": "Kanban",
       "limit": "Limit: {limit}",
+      "taskCount": "{count} task | {count} tasks",
+      "taskCountWithLimit": "{count} of {limit} tasks",
       "doneBucket": "Done bucket",
       "doneBucketHint": "All tasks moved into this bucket will automatically marked as done.",
       "doneBucketHintExtended": "All tasks moved into the done bucket will be marked as done automatically. All tasks marked as done from elsewhere will be moved as well.",

@@ -106,8 +106,8 @@ test.describe('Project View Kanban', () => {
 
 		// Wait for the limit to be saved - the dropdown closes and limit is shown
 		await expect(page.locator('.global-notification')).toContainText('Success')
-		await expect(page.locator('.kanban .bucket .bucket-header span.limit').first()).toBeVisible()
-		await expect(page.locator('.kanban .bucket .bucket-header span.limit').first()).toContainText('/3')
+		await expect(page.locator('.kanban .bucket .bucket-header span.bucket-count').first()).toBeVisible()
+		await expect(page.locator('.kanban .bucket .bucket-header span.bucket-count').first()).toContainText('/3')
 	})
 
 	test('Can rename a bucket', async ({authenticatedPage: page}) => {
@@ -442,21 +442,58 @@ test.describe('Project View Kanban', () => {
 		await expect(page.locator('.kanban .task')).toHaveCount(1)
 	})
 
-	test('Should not show task count by default when bucket has no limit', async ({authenticatedPage: page}) => {
-		await createTaskWithBuckets(buckets, 5)
+	test('Shows the task count right after the bucket title and hides it when the bucket is empty', async ({authenticatedPage: page}) => {
+		// More tasks than the first page of a bucket, so the count has to come from the bucket total
+		await createTaskWithBuckets(buckets, 30)
 		await page.goto('/projects/1/4')
 
-		// Wait for buckets to load
-		await expect(page.locator('.kanban .bucket .title').filter({hasText: buckets[0].title})).toBeVisible()
-
-		// Verify the task count span is not visible when no limit is set
-		await expect(page.locator('.kanban .bucket .bucket-header span.limit').first()).not.toBeVisible()
+		const count = page.locator('.kanban .bucket').nth(0).locator('.bucket-header .title + span.bucket-count')
+		await expect(count).toHaveText('30')
+		await expect(count).toHaveAttribute('aria-label', '30 tasks')
+		await expect(page.locator('.kanban .bucket').nth(1).locator('.bucket-header .title')).toBeVisible()
+		await expect(page.locator('.kanban .bucket').nth(1).locator('.bucket-header span.bucket-count')).toHaveCount(0)
 	})
 
-	test('Should show task count when alwaysShowBucketTaskCount setting is enabled', async ({authenticatedPage: page, apiContext, userToken}) => {
-		await createTaskWithBuckets(buckets, 5)
+	test('Updates the task count when tasks are added, moved and deleted', async ({authenticatedPage: page}) => {
+		const tasks = await createTaskWithBuckets(buckets, 2)
+		await page.goto('/projects/1/4')
 
-		// Enable the alwaysShowBucketTaskCount setting
+		const countOf = (bucket: number) => page.locator('.kanban .bucket').nth(bucket).locator('.bucket-header span.bucket-count')
+		await expect(countOf(0)).toHaveText('2')
+		await expect(countOf(1)).toHaveCount(0)
+
+		const firstBucket = page.locator('.kanban .bucket').nth(0)
+		await firstBucket.locator('.bucket-footer .button').filter({hasText: 'Add another task'}).click()
+		await firstBucket.locator('.bucket-footer .field .control input.input').fill('New Task')
+		await firstBucket.locator('.bucket-footer .field .control input.input').press('Enter')
+		await expect(firstBucket.locator('.tasks')).toContainText('New Task')
+		await expect(countOf(0)).toHaveText('3')
+
+		await firstBucket.locator('.tasks .task').filter({hasText: tasks[0].title}).dragTo(page.locator('.kanban .bucket').nth(1).locator('.tasks'))
+		await expect(page.locator('.kanban .bucket').nth(1).locator('.tasks')).toContainText(tasks[0].title)
+		await expect(countOf(0)).toHaveText('2')
+		await expect(countOf(1)).toHaveText('1')
+
+		await page.reload()
+		await expect(countOf(0)).toHaveText('2')
+		await expect(countOf(1)).toHaveText('1')
+
+		await page.locator('.kanban .bucket').nth(1).locator('.tasks .task').filter({hasText: tasks[0].title}).click()
+		await page.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'}).click()
+		await page.locator('dialog[open] .modal-content .actions .button').filter({hasText: 'Do it!'}).click()
+		await expect(page.locator('.global-notification')).toContainText('Success')
+		// Deleting returns to the board
+		await expect(page).toHaveURL(/\/projects\/1\/4$/)
+		await expect(countOf(0)).toHaveText('2')
+		await expect(countOf(1)).toHaveCount(0)
+
+		await page.reload()
+		await expect(countOf(0)).toHaveText('2')
+		await expect(countOf(1)).toHaveCount(0)
+	})
+
+	test('Shows a zero count on empty buckets when alwaysShowBucketTaskCount is enabled', async ({authenticatedPage: page, apiContext, userToken}) => {
+		await createTaskWithBuckets(buckets, 5)
 		await updateUserSettings(apiContext, userToken, {
 			frontend_settings: {
 				always_show_bucket_task_count: true,
@@ -465,16 +502,8 @@ test.describe('Project View Kanban', () => {
 
 		await page.goto('/projects/1/4')
 
-		// Wait for buckets to load
-		await expect(page.locator('.kanban .bucket .title').filter({hasText: buckets[0].title})).toBeVisible()
-
-		// Verify the task count is shown (without limit, just the count)
-		const limitSpan = page.locator('.kanban .bucket .bucket-header span.limit').first()
-		await expect(limitSpan).toBeVisible()
-		// Should show just the count (5) without a limit
-		await expect(limitSpan).toContainText('5')
-		// Should not contain a slash (no limit set)
-		await expect(limitSpan).not.toContainText('/')
+		await expect(page.locator('.kanban .bucket').nth(0).locator('.bucket-header span.bucket-count')).toHaveText('5')
+		await expect(page.locator('.kanban .bucket').nth(1).locator('.bucket-header span.bucket-count')).toHaveText('0')
 	})
 
 	test('Should show count/limit format when bucket has a limit set', async ({authenticatedPage: page}) => {
@@ -493,7 +522,7 @@ test.describe('Project View Kanban', () => {
 		await expect(page.locator('.global-notification')).toContainText('Success')
 
 		// Verify the count/limit format is shown (2/10)
-		const limitSpan = page.locator('.kanban .bucket .bucket-header span.limit').first()
+		const limitSpan = page.locator('.kanban .bucket .bucket-header span.bucket-count').first()
 		await expect(limitSpan).toBeVisible()
 		await expect(limitSpan).toContainText('2/10')
 	})
