@@ -45,7 +45,7 @@ var dumpCmd = &cobra.Command{
 		initialize.FullInitWithoutAsync()
 	},
 	Run: func(_ *cobra.Command, _ []string) {
-		filename := "vikunja-dump_" + time.Now().Format("2006-01-02_15-03-05") + ".zip"
+		filename := "vikunja-dump_" + time.Now().Format("2006-01-02_15-04-05") + ".zip"
 		if dumpFilenameFlag != "" {
 			filename = dumpFilenameFlag
 			if !strings.HasSuffix(filename, ".zip") {
