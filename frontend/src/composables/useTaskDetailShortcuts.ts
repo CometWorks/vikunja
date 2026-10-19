@@ -1,5 +1,5 @@
 import {ref, onMounted, onBeforeUnmount} from 'vue'
-import {eventToShortcutString} from '@/helpers/shortcut'
+import {eventToShortcutString, isFormField} from '@/helpers/shortcut'
 
 import {getTaskIdentifier} from '@/helpers/task'
 import type {Task as ITask} from '@/client/generated'
@@ -8,6 +8,19 @@ interface UseTaskDetailShortcutsOptions {
 	task: () => ITask
 	taskTitle: () => string
 	onSave: () => void
+	scrollContainer: () => HTMLElement | null
+}
+
+// Same page step as Chromium's native Page Up/Down, so consecutive pages overlap a little.
+const PAGE_SCROLL_RATIO = 0.875
+
+const SCROLL_TARGETS: Record<string, (scroller: HTMLElement) => number> = {
+	PageDown: scroller => scroller.scrollTop + scroller.clientHeight * PAGE_SCROLL_RATIO,
+	PageUp: scroller => scroller.scrollTop - scroller.clientHeight * PAGE_SCROLL_RATIO,
+	Home: () => 0,
+	'Control+Home': () => 0,
+	End: scroller => scroller.scrollHeight,
+	'Control+End': scroller => scroller.scrollHeight,
 }
 
 async function copySavely(value: string) {
@@ -23,6 +36,7 @@ export function useTaskDetailShortcuts({
 	task,
 	taskTitle,
 	onSave,
+	scrollContainer,
 }: UseTaskDetailShortcutsOptions) {
 	const dotKeyPressedTimes = ref(0)
 	const dotKeyCopyValue = ref('')
@@ -50,11 +64,22 @@ export function useTaskDetailShortcuts({
 
 		const target = event.target as HTMLElement
 
-		if (
-			target.tagName.toLowerCase() === 'input' ||
-			target.tagName.toLowerCase() === 'textarea' ||
-			target.contentEditable === 'true'
-		) {
+		if (isFormField(target)) {
+			return
+		}
+
+		// The browser can't do this itself in the modal: focus starts on the fixed close
+		// button, so native Page Down scrolls the locked viewport instead of the modal.
+		const scrollTarget = SCROLL_TARGETS[shortcutString]
+		const scroller = scrollContainer()
+		if (scrollTarget && scroller && !event.defaultPrevented) {
+			// A dialog opened over the task (delete confirmation, shortcuts help) keeps its keys.
+			const dialog = target.closest('dialog')
+			if (dialog && !dialog.contains(scroller)) {
+				return
+			}
+			event.preventDefault()
+			scroller.scrollTo({top: scrollTarget(scroller)})
 			return
 		}
 

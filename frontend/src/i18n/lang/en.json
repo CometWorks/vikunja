@@ -1454,7 +1454,11 @@
       "copyIdentifier": "Copy task identifier to clipboard",
       "copyIdentifierAndTitle": "Copy task identifier and title to clipboard",
       "copyIdentifierTitleAndUrl": "Copy task identifier, title and URL to clipboard",
-      "copyUrl": "Copy task URL to clipboard"
+      "copyUrl": "Copy task URL to clipboard",
+      "scrollPageUp": "Scroll the task up one page",
+      "scrollPageDown": "Scroll the task down one page",
+      "scrollToTop": "Jump to the top of the task",
+      "scrollToBottom": "Jump to the bottom of the task"
     },
     "project": {
       "title": "Project Views",

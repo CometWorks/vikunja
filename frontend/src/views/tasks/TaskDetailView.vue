@@ -1175,6 +1175,7 @@ useTaskDetailShortcuts({
 	task: () => task.value,
 	taskTitle: () => taskTitle.value,
 	onSave: saveTask,
+	scrollContainer: () => scrollContainer.value,
 })
 
 const showDeleteModal = ref(false)

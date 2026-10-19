@@ -222,6 +222,22 @@ export const KEYBOARD_SHORTCUTS: ShortcutGroup[] = [
 				title: 'keyboardShortcuts.task.copyUrl',
 				keys: [ctrl, '.'],
 			},
+			{
+				title: 'keyboardShortcuts.task.scrollPageUp',
+				keys: ['page up'],
+			},
+			{
+				title: 'keyboardShortcuts.task.scrollPageDown',
+				keys: ['page down'],
+			},
+			{
+				title: 'keyboardShortcuts.task.scrollToTop',
+				keys: ['ctrl', 'home'],
+			},
+			{
+				title: 'keyboardShortcuts.task.scrollToBottom',
+				keys: ['ctrl', 'end'],
+			},
 		],
 	},
 ] as const
