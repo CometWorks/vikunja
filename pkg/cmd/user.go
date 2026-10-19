@@ -162,7 +162,7 @@ func getPasswordFromFlagOrInput() (pw string) {
 			log.Fatalf("Error reading password: %s", err)
 		}
 		if string(bytePW) != string(byteConfirmPW) {
-			log.Critical("Passwords don't match!")
+			log.Fatal("Passwords don't match!")
 		}
 		fmt.Printf("\n")
 		pw = strings.TrimSpace(string(bytePW))
