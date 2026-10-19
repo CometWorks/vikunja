@@ -116,6 +116,84 @@ func (l *TimeEntryListener) Handle(msg *message.Message) error {
 	return nil
 }
 
+// TaskChange is the payload of the task.changed and comment.changed events. It
+// only holds ids: clients refetch through the API, which applies their own
+// permissions and formats.
+type TaskChange struct {
+	TaskID    int64 `json:"task_id"`
+	ProjectID int64 `json:"project_id"`
+	CommentID int64 `json:"comment_id,omitempty"`
+	DoerID    int64 `json:"doer_id,omitempty"`
+}
+
+// TaskChangeListener tells every connected user who can read a task that the
+// task or one of its comments changed, so their open lists, boards and task
+// details refresh.
+//
+// ponytail: one read check per connected user and event, fine for team-sized
+// instances. Cache project access per user if that gets slow.
+type TaskChangeListener struct {
+	wsEvent string
+}
+
+func (l *TaskChangeListener) Name() string { return "websocket.push." + l.wsEvent }
+
+func (l *TaskChangeListener) Handle(msg *message.Message) error {
+	// Every task event carries the task, comment events also the comment.
+	var event struct {
+		Task    *models.Task        `json:"task"`
+		Comment *models.TaskComment `json:"comment"`
+		Doer    *user.User          `json:"doer"`
+	}
+	if err := json.Unmarshal(msg.Payload, &event); err != nil {
+		return err
+	}
+	if event.Task == nil || event.Task.ID == 0 {
+		return nil
+	}
+
+	hub := GetHub()
+	if hub == nil {
+		return nil
+	}
+	userIDs := hub.SubscribedUserIDs(l.wsEvent)
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	s := db.NewSession()
+	defer s.Close()
+
+	change := &TaskChange{TaskID: event.Task.ID, ProjectID: event.Task.ProjectID}
+	if change.ProjectID == 0 {
+		task, err := models.GetTaskByIDSimple(s, change.TaskID)
+		if err != nil {
+			log.Errorf("WebSocket: failed to load task %d: %v", change.TaskID, err)
+			return nil
+		}
+		change.ProjectID = task.ProjectID
+	}
+	if event.Comment != nil {
+		change.CommentID = event.Comment.ID
+	}
+	if event.Doer != nil {
+		change.DoerID = event.Doer.ID
+	}
+
+	project := &models.Project{ID: change.ProjectID}
+	for _, userID := range userIDs {
+		canRead, _, err := project.CanRead(s, &user.User{ID: userID})
+		if err != nil {
+			log.Errorf("WebSocket: failed to check access to project %d for user %d: %v", change.ProjectID, userID, err)
+			continue
+		}
+		if canRead {
+			hub.PublishForUser(userID, l.wsEvent, change)
+		}
+	}
+	return nil
+}
+
 type SessionsRevokedListener struct{}
 
 // Name defines the name for the SessionsRevokedListener listener
@@ -149,4 +227,25 @@ func RegisterListeners() {
 	events.RegisterListener((&models.TimeEntryUpdatedEvent{}).Name(), &TimeEntryListener{wsEvent: "timer.updated"})
 	events.RegisterListener((&models.TimeEntryDeletedEvent{}).Name(), &TimeEntryListener{wsEvent: "timer.deleted"})
 	events.RegisterListener((&models.SessionsRevokedEvent{}).Name(), &SessionsRevokedListener{})
+
+	for _, event := range []events.Event{
+		&models.TaskCreatedEvent{},
+		&models.TaskUpdatedEvent{},
+		&models.TaskDeletedEvent{},
+		&models.TaskAssigneeCreatedEvent{},
+		&models.TaskAssigneeDeletedEvent{},
+		&models.TaskAttachmentCreatedEvent{},
+		&models.TaskAttachmentDeletedEvent{},
+		&models.TaskRelationCreatedEvent{},
+		&models.TaskRelationDeletedEvent{},
+	} {
+		events.RegisterListener(event.Name(), &TaskChangeListener{wsEvent: "task.changed"})
+	}
+	for _, event := range []events.Event{
+		&models.TaskCommentCreatedEvent{},
+		&models.TaskCommentUpdatedEvent{},
+		&models.TaskCommentDeletedEvent{},
+	} {
+		events.RegisterListener(event.Name(), &TaskChangeListener{wsEvent: "comment.changed"})
+	}
 }

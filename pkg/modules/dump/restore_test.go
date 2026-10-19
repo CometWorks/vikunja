@@ -57,6 +57,12 @@ func TestConvertFieldValue(t *testing.T) {
 			assert.Contains(t, err.Error(), "could not parse double value")
 		})
 
+		t.Run("should keep null", func(t *testing.T) {
+			result, err := convertFieldValue("percent_done", nil, true)
+			require.NoError(t, err)
+			assert.Nil(t, result)
+		})
+
 		t.Run("should return error for unexpected type", func(t *testing.T) {
 			_, err := convertFieldValue("position", []int{1, 2, 3}, true)
 			require.Error(t, err)
@@ -94,6 +100,12 @@ func TestConvertFieldValue(t *testing.T) {
 
 		t.Run("should return nil for 'Null' string", func(t *testing.T) {
 			result, err := convertFieldValue("bucket_configuration", "Null", false)
+			require.NoError(t, err)
+			assert.Nil(t, result)
+		})
+
+		t.Run("should keep null", func(t *testing.T) {
+			result, err := convertFieldValue("frontend_settings", nil, false)
 			require.NoError(t, err)
 			assert.Nil(t, result)
 		})

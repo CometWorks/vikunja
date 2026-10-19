@@ -783,6 +783,8 @@ func TestHardDeleteTask(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.Insert(&TaskUnreadStatus{TaskID: 1, UserID: 2})
 	require.NoError(t, err)
+	_, err = s.Insert(&TaskAttachmentText{AttachmentID: 1, TaskID: 1, Content: "testfile1"})
+	require.NoError(t, err)
 	_, err = s.Insert(
 		&TaskIndexAlias{ProjectID: 2, Index: 99, TaskID: 1},
 		&TaskIndexAlias{ProjectID: 3, Index: 99, TaskID: 1},
@@ -803,6 +805,7 @@ func TestHardDeleteTask(t *testing.T) {
 		"task_assignees",
 		"task_comments",
 		"task_attachments",
+		"task_attachment_texts",
 		"label_tasks",
 		"task_relations",
 		"task_reminders",

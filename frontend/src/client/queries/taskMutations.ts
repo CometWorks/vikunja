@@ -167,6 +167,26 @@ function insertTaskIntoBoards(client: QueryClient, created: Task) {
 	}
 }
 
+// Puts a task fetched with its buckets into its bucket on every cached board of its
+// project: moves the card when it is there already, adds it on top otherwise.
+export function placeTaskOnBoards(client: QueryClient, fetched: Task) {
+	const task = normalizeTask(fetched)
+	for (const [key, board] of client.getQueriesData<BoardData>({queryKey: kanbanKeys.all})) {
+		const project = kanbanKeys.projectOf(key)
+		const viewId = kanbanKeys.viewOf(key)
+		if (!board || project !== task.project_id || viewId === undefined) continue
+		const target = task.buckets?.find(bucket => bucket.project_view_id === viewId)?.id
+		if (target === undefined || !board.buckets.some(bucket => bucket.id === target)) continue
+		const onBoard = board.buckets.some(bucket => bucket.tasks.some(item => item.id === task.id))
+		const buckets = onBoard
+			? moveTaskToBucket(board.buckets, task, target)
+			: board.buckets.map(bucket => bucket.id === target
+				? {...bucket, count: bucket.count + 1, tasks: [{...task, bucket_id: target}, ...bucket.tasks]}
+				: bucket)
+		if (buckets !== board.buckets) client.setQueryData(key, {...board, buckets: buckets.map(normalizeBucket)})
+	}
+}
+
 export function createTaskMutationOptions() {
 	return contextMutationOptions({
 		mutationFn: async (task: Task & Required<Pick<Task, 'project_id'>>) => (await tasksCreate({

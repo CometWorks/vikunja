@@ -58,6 +58,7 @@ func SetupTests() {
 		"task_index_aliases",
 		"task_assignees",
 		"task_attachments",
+		"task_attachment_texts",
 		"task_comments",
 		"task_relations",
 		"task_reminders",

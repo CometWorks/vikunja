@@ -169,6 +169,8 @@ var paradeDBIndexes = []string{
 	"idx_tasks_paradedb",
 	"idx_projects_paradedb",
 	"idx_time_entries_paradedb",
+	"idx_task_comments_paradedb",
+	"idx_task_attachment_texts_paradedb",
 }
 
 // checkParadeDB reports whether the pg_search extension is installed and, if so,

@@ -58,24 +58,89 @@ func validateTableName(table string) error {
 	return nil
 }
 
+// tableMetas returns the schema of every table in the database, keyed by table name.
+func tableMetas() (map[string]*schemas.Table, error) {
+	tables, err := x.DBMetas()
+	if err != nil {
+		return nil, err
+	}
+	metas := make(map[string]*schemas.Table, len(tables))
+	for _, table := range tables {
+		metas[table.Name] = table
+	}
+	return metas, nil
+}
+
 // Dump dumps all Vikunja database tables
 func Dump() (data map[string][]byte, err error) {
 	tableNames := RegisteredTableNames()
 
+	metas, err := tableMetas()
+	if err != nil {
+		return nil, err
+	}
+
 	data = make(map[string][]byte, len(tableNames))
 	for _, name := range tableNames {
-		entries := []map[string]interface{}{}
-		err := x.Table(name).Find(&entries)
-		if err != nil {
-			return nil, err
-		}
-		data[name], err = json.Marshal(entries)
+		data[name], err = dumpTable(name, metas[name])
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return
+}
+
+func dumpTable(name string, meta *schemas.Table) ([]byte, error) {
+	// xorm scans nullable int and text columns into sql.NullInt64 and sql.NullString and
+	// returns 0 or "" for NULL, so every nullable column gets an IS NULL flag next to it.
+	nullFlags := map[string]string{}
+	selects := []string{"*"}
+	for _, col := range meta.Columns() {
+		if !col.Nullable {
+			continue
+		}
+		flag := fmt.Sprintf("vikunja_dump_is_null_%d", len(nullFlags))
+		nullFlags[flag] = col.Name
+		selects = append(selects, x.Quote(col.Name)+" IS NULL AS "+flag)
+	}
+
+	entries := []map[string]interface{}{}
+	if err := x.Table(name).Select(strings.Join(selects, ", ")).Find(&entries); err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		for flag, colName := range nullFlags {
+			// The flag comes back as a bool (postgres), an int (mysql) or a string (sqlite).
+			if isNull := fmt.Sprint(entry[flag]); isNull == "true" || isNull == "1" {
+				entry[colName] = nil
+			}
+			delete(entry, flag)
+		}
+	}
+
+	// xorm hands back column types it has no scan type for as raw bytes, which json.Marshal
+	// would write as base64. On Postgres that hits every double precision and json column.
+	for _, entry := range entries {
+		for colName, value := range entry {
+			raw, is := value.([]byte)
+			if !is {
+				continue
+			}
+			col := meta.GetColumn(colName)
+			if col == nil || col.SQLType.IsBlob() {
+				continue
+			}
+			if col.SQLType.IsNumeric() {
+				entry[colName] = json.Number(raw)
+				continue
+			}
+			entry[colName] = string(raw)
+		}
+	}
+
+	return json.Marshal(entries)
 }
 
 // Restore restores a table with all its entries
@@ -88,19 +153,12 @@ func Restore(table string, contents []map[string]interface{}) (err error) {
 		return err
 	}
 
-	meta, err := x.DBMetas()
+	metas, err := tableMetas()
 	if err != nil {
 		return err
 	}
 
-	var metaForCurrentTable *schemas.Table
-	for _, m := range meta {
-		if m.Name == table {
-			metaForCurrentTable = m
-			break
-		}
-	}
-
+	metaForCurrentTable := metas[table]
 	if metaForCurrentTable == nil {
 		log.Fatalf("Could not find table definition for table %s", table)
 	}
@@ -149,11 +207,11 @@ func Restore(table string, contents []map[string]interface{}) (err error) {
 		}
 	}
 
-	if Type() == schemas.POSTGRES {
-		idSequence := table + "_id_seq"
-		_, err = x.Query(`SELECT setval('"` + idSequence + `"', COALESCE((SELECT MAX(id) FROM "` + table + `"), 1))`)
+	// Tables with a text id (sessions) or without an id column have no sequence to reset.
+	if autoIncr := metaForCurrentTable.AutoIncrement; Type() == schemas.POSTGRES && autoIncr != "" {
+		_, err = x.Query(`SELECT setval(pg_get_serial_sequence(?, ?), COALESCE((SELECT MAX(`+x.Quote(autoIncr)+`) FROM `+x.Quote(table)+`), 1))`, table, autoIncr)
 		if err != nil {
-			log.Warningf("Could not reset id sequence for %s: %s", idSequence, err)
+			log.Warningf("Could not reset the %s sequence of table %s: %s", autoIncr, table, err)
 			err = nil
 		}
 	}

@@ -23,7 +23,12 @@ import {
 	taskKeys,
 	normalizeTask,
 } from './tasks'
-import {kanbanKeys} from './kanban'
+import {kanbanKeys, normalizeBucket, type BoardData} from './kanban'
+const sdk = vi.hoisted(() => ({tasksRead: vi.fn()}))
+vi.mock('@/client/generated', async importOriginal => ({
+	...await importOriginal<object>(),
+	...sdk,
+}))
 vi.mock('@/message', () => ({
 	error: vi.fn(),
 	success: vi.fn(),
@@ -357,4 +362,107 @@ it('refreshes task details and marks board membership stale after reconnecting',
 	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute({kind: 'reconnect'})
 	expect(client.getQueryState(boardKey)?.isInvalidated).toBe(true)
 	expect(client.getQueryState(taskKeys.detail(1))?.isInvalidated).toBe(true)
+})
+
+it('parses task and comment changes', () => {
+	expect(parseServerCacheEvent('task.changed', {task_id: 5, project_id: 2}, 7)).toEqual({kind: 'task', taskId: 5})
+	expect(parseServerCacheEvent('comment.changed', {task_id: 5, comment_id: 3}, 7)).toEqual({kind: 'comment', taskId: 5})
+	expect(parseServerCacheEvent('task.changed', {task_id: 0}, 7)).toBeNull()
+	expect(parseServerCacheEvent('comment.changed', {task_id: '5'}, 7)).toBeNull()
+})
+
+function board(...buckets: {id: number, tasks: {id: number, title: string}[]}[]): BoardData {
+	return {
+		buckets: buckets.map(bucket => normalizeBucket({
+			id: bucket.id,
+			count: bucket.tasks.length,
+			tasks: bucket.tasks.map(task => normalizeTask({...task, project_id: 2})),
+		})),
+		pages: {},
+	}
+}
+
+function bucketTitles(client: QueryClient, key: readonly unknown[]) {
+	return client.getQueryData<BoardData>(key)!.buckets.map(bucket => ({
+		id: bucket.id,
+		count: bucket.count,
+		titles: bucket.tasks.map(task => task.title),
+	}))
+}
+
+async function applyTaskChange(client: QueryClient, taskId: number) {
+	const event = parseServerCacheEvent('task.changed', {task_id: taskId, project_id: 2}, 7)!
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(event)
+}
+
+it('moves a card changed by someone else to its new bucket and patches every copy', async () => {
+	const client = new QueryClient()
+	const boardKey = kanbanKeys.board(2, 3)
+	client.setQueryData(boardKey, board(
+		{id: 10, tasks: [{id: 5, title: 'old'}]},
+		{id: 11, tasks: [{id: 6, title: 'other'}]},
+	))
+	client.setQueryData(taskKeys.detail(5), normalizeTask({id: 5, project_id: 2, title: 'old'}))
+	const listKey = taskKeys.allList({project: 2})
+	client.setQueryData(listKey, [normalizeTask({id: 5, project_id: 2, title: 'old'})])
+	sdk.tasksRead.mockResolvedValueOnce({data: {
+		id: 5,
+		project_id: 2,
+		title: 'new',
+		buckets: [{id: 11, project_view_id: 3}],
+	}})
+
+	await applyTaskChange(client, 5)
+
+	expect(sdk.tasksRead).toHaveBeenCalledWith({path: {task: 5}, query: {expand: ['buckets']}})
+	expect(bucketTitles(client, boardKey)).toEqual([
+		{id: 10, count: 0, titles: []},
+		{id: 11, count: 2, titles: ['new', 'other']},
+	])
+	expect(client.getQueryData<{title: string}>(taskKeys.detail(5))?.title).toBe('new')
+	expect(client.getQueryState(listKey)?.isInvalidated).toBe(true)
+})
+
+it('adds a task created by someone else to the board of its project only', async () => {
+	const client = new QueryClient()
+	const ownBoard = kanbanKeys.board(2, 3)
+	const otherBoard = kanbanKeys.board(4, 8)
+	client.setQueryData(ownBoard, board({id: 10, tasks: [{id: 6, title: 'other'}]}))
+	client.setQueryData(otherBoard, board({id: 20, tasks: []}))
+	sdk.tasksRead.mockResolvedValueOnce({data: {
+		id: 7,
+		project_id: 2,
+		title: 'created',
+		buckets: [{id: 10, project_view_id: 3}],
+	}})
+
+	await applyTaskChange(client, 7)
+
+	expect(bucketTitles(client, ownBoard)).toEqual([{id: 10, count: 2, titles: ['created', 'other']}])
+	expect(bucketTitles(client, otherBoard)).toEqual([{id: 20, count: 0, titles: []}])
+})
+
+it('drops a task that was deleted or is no longer readable', async () => {
+	const client = new QueryClient()
+	const boardKey = kanbanKeys.board(2, 3)
+	client.setQueryData(boardKey, board({id: 10, tasks: [{id: 5, title: 'gone'}, {id: 6, title: 'stays'}]}))
+	sdk.tasksRead.mockRejectedValueOnce({status: 404})
+
+	await applyTaskChange(client, 5)
+
+	expect(bucketTitles(client, boardKey)).toEqual([{id: 10, count: 1, titles: ['stays']}])
+})
+
+it('refreshes the comments of a task when one changes', async () => {
+	const client = new QueryClient()
+	client.setQueryData(commentKeys.page(5, 'asc', 1), {items: []})
+	client.setQueryData(commentKeys.page(6, 'asc', 1), {items: []})
+	client.setQueryData(taskKeys.detail(5), normalizeTask({id: 5}))
+	const event = parseServerCacheEvent('comment.changed', {task_id: 5, comment_id: 3}, 7)!
+
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(event)
+
+	expect(client.getQueryState(commentKeys.page(5, 'asc', 1))?.isInvalidated).toBe(true)
+	expect(client.getQueryState(commentKeys.page(6, 'asc', 1))?.isInvalidated).toBe(false)
+	expect(client.getQueryState(taskKeys.detail(5))?.isInvalidated).toBe(true)
 })

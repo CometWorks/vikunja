@@ -59,7 +59,7 @@ var dumpCmd = &cobra.Command{
 		}
 
 		if err := dump.Dump(filepath.Join(path, filename)); err != nil {
-			log.Critical(err.Error())
+			log.Fatal(err.Error())
 		}
 	},
 }

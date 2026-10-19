@@ -230,6 +230,12 @@ const (
 	WebhooksProxyPassword       Key = `webhooks.proxypassword`
 	WebhooksAllowNonRoutableIPs Key = `webhooks.allownonroutableips`
 
+	SemanticSearchEnabled     Key = `semanticsearch.enabled`
+	SemanticSearchURL         Key = `semanticsearch.url`
+	SemanticSearchAPIKey      Key = `semanticsearch.apikey`
+	SemanticSearchModel       Key = `semanticsearch.model`
+	SemanticSearchMaxDistance Key = `semanticsearch.maxdistance`
+
 	AuditEnabled           Key = `audit.enabled`
 	AuditLogfile           Key = `audit.logfile`
 	AuditRotationMaxSizeMB Key = `audit.rotation.maxsizemb`
@@ -273,6 +279,11 @@ func (k Key) GetInt() int {
 // GetInt64 returns an int64 config value
 func (k Key) GetInt64() int64 {
 	return viper.GetInt64(string(k))
+}
+
+// GetFloat64 returns a float64 config value
+func (k Key) GetFloat64() float64 {
+	return viper.GetFloat64(string(k))
 }
 
 // GetDuration returns a duration config value
@@ -524,6 +535,11 @@ func initDefaultConfig() {
 	WebhooksEnabled.setDefault(true)
 	WebhooksTimeoutSeconds.setDefault(30)
 	WebhooksAllowNonRoutableIPs.setDefault(false)
+	// Semantic search
+	SemanticSearchEnabled.setDefault(false)
+	SemanticSearchURL.setDefault("https://api.openai.com/v1")
+	SemanticSearchModel.setDefault("text-embedding-3-small")
+	SemanticSearchMaxDistance.setDefault(0.6)
 	// Audit
 	AuditEnabled.setDefault(false)
 	AuditLogfile.setDefault("") // empty means <log.path>/audit.log, resolved at init
