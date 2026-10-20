@@ -312,6 +312,60 @@ func TestTask_Update(t *testing.T) {
 			"bucket_id": 3,
 		}, false)
 	})
+	t.Run("a task marked done goes to the top of the done bucket", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		project := &Project{Title: "done order"}
+		require.NoError(t, project.Create(s, u))
+		views, err := getViewsForProject(s, project.ID)
+		require.NoError(t, err)
+		var kanban *ProjectView
+		for _, v := range views {
+			if v.ViewKind == ProjectViewKindKanban {
+				kanban = v
+			}
+		}
+		require.NotNil(t, kanban)
+		require.NotZero(t, kanban.DoneBucketID)
+
+		older := &Task{Title: "older", ProjectID: project.ID}
+		require.NoError(t, older.Create(s, u))
+		newer := &Task{Title: "newer", ProjectID: project.ID}
+		require.NoError(t, newer.Create(s, u))
+
+		doneOrder := func() []int64 {
+			buckets, err := GetTasksInBucketsForView(s, kanban, []*Project{project}, &taskSearchOptions{}, u)
+			require.NoError(t, err)
+			ids := []int64{}
+			for _, b := range buckets {
+				if b.ID == kanban.DoneBucketID {
+					for _, tsk := range b.Tasks {
+						ids = append(ids, tsk.ID)
+					}
+				}
+			}
+			return ids
+		}
+		// Like the API: the update carries the whole task, not just the done flag.
+		setDone := func(id int64, done bool) {
+			task, err := GetTaskByIDSimple(s, id)
+			require.NoError(t, err)
+			task.Done = done
+			require.NoError(t, task.Update(s, u))
+		}
+
+		// The done bucket used to keep creation order, no matter when a task
+		// was completed.
+		setDone(older.ID, true)
+		setDone(newer.ID, true)
+		assert.Equal(t, []int64{newer.ID, older.ID}, doneOrder())
+
+		setDone(older.ID, false)
+		setDone(older.ID, true)
+		assert.Equal(t, []int64{older.ID, newer.ID}, doneOrder(), "the most recently completed task comes first")
+	})
 	t.Run("marking a task as done should fire exactly ONE task.updated event", func(t *testing.T) {
 		db.LoadAndAssertFixtures(t)
 		s := db.NewSession()

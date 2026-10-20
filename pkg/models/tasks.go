@@ -1234,7 +1234,7 @@ func setTasksInBucketInViews(s *xorm.Session, views []*ProjectView, tasks []*Tas
 						return nil, nil, err
 					}
 
-					err = t.moveTaskToDoneBuckets(s, a, views)
+					err = t.moveTaskToDoneBuckets(s, a, views, false)
 					if err != nil {
 						return nil, nil, err
 					}
@@ -1490,7 +1490,7 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 
 	// When a task changed its done status, make sure it is in the correct bucket
 	if t.ProjectID == ot.ProjectID && !t.isRepeating() && t.Done != ot.Done {
-		err = t.moveTaskToDoneBuckets(s, a, views)
+		err = t.moveTaskToDoneBuckets(s, a, views, true)
 		if err != nil {
 			return
 		}
@@ -1708,7 +1708,11 @@ func updateTasks(s *xorm.Session, a web.Auth, t *Task, ids []int64, fields []str
 	return tasks, nil
 }
 
-func (t *Task) moveTaskToDoneBuckets(s *xorm.Session, a web.Auth, views []*ProjectView) error {
+// moveTaskToDoneBuckets moves the task into or out of each view's done bucket.
+// With completedOnTop, a task marked done goes on top of the done bucket, so the
+// most recently completed task is the first one there. Task creation leaves it
+// off and keeps the position the creation batch calculates.
+func (t *Task) moveTaskToDoneBuckets(s *xorm.Session, a web.Auth, views []*ProjectView, completedOnTop bool) error {
 	for _, view := range views {
 		currentTaskBucket := &TaskBucket{}
 		_, err := s.Where("task_id = ? AND project_view_id = ?", t.ID, view.ID).
@@ -1753,12 +1757,19 @@ func (t *Task) moveTaskToDoneBuckets(s *xorm.Session, a web.Auth, views []*Proje
 			return err
 		}
 
-		tp := TaskPosition{
+		tp := &TaskPosition{
 			TaskID:        t.ID,
 			ProjectViewID: view.ID,
 			Position:      calculateDefaultPosition(t.Index, t.Position),
 		}
-		err = updateTaskPosition(s, a, &tp)
+		if t.Done && completedOnTop {
+			// Placed like a new task: above everything else in the view.
+			tp, err = calculateNewPositionForTask(s, a, &Task{ID: t.ID, Index: t.Index}, view)
+			if err != nil {
+				return err
+			}
+		}
+		err = updateTaskPosition(s, a, tp)
 		if err != nil {
 			return err
 		}
