@@ -65,9 +65,13 @@
 										{{ bucket.title }}
 									</h2>
 									<span
-										v-if="bucket.limit > 0 || alwaysShowBucketTaskCount"
+										v-if="bucket.count > 0 || bucket.limit > 0 || alwaysShowBucketTaskCount"
 										:class="{'is-max': bucket.limit > 0 && bucket.count >= bucket.limit}"
-										class="limit"
+										class="bucket-count"
+										role="img"
+										:aria-label="bucket.limit > 0
+											? $t('project.kanban.taskCountWithLimit', {count: bucket.count, limit: bucket.limit})
+											: $t('project.kanban.taskCount', bucket.count)"
 									>
 										{{ bucket.limit > 0 ? `${bucket.count}/${bucket.limit}` : bucket.count }}
 									</span>
@@ -1005,7 +1009,6 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		background-color: var(--grey-100);
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
 		padding: .5rem;
 		block-size: $bucket-header-height;
 
@@ -1013,9 +1016,9 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 			cursor: pointer;
 		}
 
-		.limit {
-			padding: 0 .5rem;
-			font-weight: bold;
+		.bucket-count {
+			color: var(--grey-500);
+			white-space: nowrap;
 
 			&.is-max {
 				color: var(--danger-text);
@@ -1023,10 +1026,16 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		}
 
 		.title.input {
+			// Shrink to the text so the count sits right after the name
+			inline-size: auto;
 			block-size: auto;
 			padding: .4rem .5rem;
 			display: inline-block;
 			cursor: pointer;
+		}
+
+		.options {
+			margin-inline-start: auto;
 		}
 	}
 
