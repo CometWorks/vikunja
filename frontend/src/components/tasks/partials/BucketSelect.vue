@@ -51,6 +51,7 @@ import type {Task as ITask} from '@/client/generated'
 import type {Bucket as IBucket} from '@/client/generated'
 
 import {PROJECT_VIEW_KINDS} from '@/constants/projectView'
+import {getProjectViewId} from '@/helpers/projectView'
 
 import {useProjects} from '@/composables/useProjects'
 import {useBaseStore} from '@/stores/base'
@@ -93,7 +94,8 @@ const kanbanView = computed(() => {
 	}
 
 	if (manualKanbanViews.length > 1) {
-		const activeViewId = baseStore.currentProjectViewId
+		// A task opened in a new tab has no active view, so use the project's last visited one.
+		const activeViewId = baseStore.currentProjectViewId ?? getProjectViewId(project.value.id)
 		return manualKanbanViews.find(v => v.id === activeViewId) || null
 	}
 

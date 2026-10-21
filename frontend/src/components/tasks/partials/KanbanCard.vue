@@ -56,7 +56,9 @@
 					:to="{ name: 'task.detail', params: {id: task.id} }"
 					class="kanban-card__title-link"
 					draggable="false"
-					@click.exact.prevent.stop="openTaskDetail()"
+					target="_blank"
+					rel="noopener"
+					@click.exact.stop
 					@click.ctrl.stop
 					@click.meta.stop
 				>
@@ -145,6 +147,7 @@ import {colorIsDark} from '@/helpers/color/colorIsDark'
 import {useUpdateTaskMutation} from '@/client/queries/taskMutations'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
 import {playPopSound} from '@/helpers/playPop'
+import {openTaskInNewTab} from '@/helpers/openTaskInNewTab'
 import {isEditorContentEmpty} from '@/helpers/editorContentEmpty'
 import {useProjects} from '@/composables/useProjects'
 import {useDelayedLoading} from '@/composables/useDelayedLoading'
@@ -213,11 +216,7 @@ async function toggleTaskDone(task: TaskResponse) {
 }
 
 function openTaskDetail() {
-	router.push({
-		name: 'task.detail',
-		params: {id: props.task.id},
-		state: {backdropView: router.currentRoute.value.fullPath},
-	})
+	openTaskInNewTab(router, props.task.id)
 }
 
 const coverImageBlobUrl = ref<string | null>(null)

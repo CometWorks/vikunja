@@ -125,7 +125,9 @@
 							@update:modelValue="toggleTaskDone({...task, done: $event})"
 						/>
 						<RouterLink
-							:to="{ name: route.name as string, params: { id: task.id }, state: { backdropView: route.fullPath } }"
+							:to="{ name: 'task.detail', params: { id: task.id } }"
+							target="_blank"
+							rel="noopener"
 							:class="{ 'is-strikethrough': task.done}"
 						>
 							<span
@@ -186,7 +188,6 @@
 <script setup lang="ts">
 import {ref, reactive, computed} from 'vue'
 import {useI18n} from 'vue-i18n'
-import {useRoute} from 'vue-router'
 
 import {useTasks} from '@/composables/useTasks'
 import {useDelayedLoading} from '@/composables/useDelayedLoading'
@@ -224,7 +225,6 @@ const {createNewTask} = useQuickAddTask()
 const updateTask = useUpdateTaskMutation()
 const projectList = useProjects()
 const authStore = useAuthStore()
-const route = useRoute()
 const {t} = useI18n({useScope: 'global'})
 
 type TaskRelation = {kind: IRelationKind, task: ITask}

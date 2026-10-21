@@ -2,6 +2,7 @@ import {test, expect} from '../../support/fixtures'
 import {NotificationFactory} from '../../factories/notification'
 import {ProjectFactory} from '../../factories/project'
 import {TaskFactory} from '../../factories/task'
+import {expectTaskInNewTab} from '../../support/newTab'
 
 function isInboxRequest(url: string) {
 	return new URL(url).pathname.endsWith('/api/v2/notifications')
@@ -23,7 +24,7 @@ test('notification read and clear state survives reload', async ({authenticatedP
 	const rows = page.locator('.single-notification')
 	await open()
 	await expect(rows).toHaveCount(2)
-	await rows.first().click()
+	await expectTaskInNewTab(page, task.id, () => rows.first().click())
 	await open()
 	await expect(page.locator('.single-notification .read-indicator.read')).toHaveCount(1)
 	await page.reload()

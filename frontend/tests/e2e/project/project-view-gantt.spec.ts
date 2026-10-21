@@ -4,6 +4,7 @@ import {TaskFactory} from '../../factories/task'
 import {ProjectFactory} from '../../factories/project'
 import {ProjectViewFactory} from '../../factories/project_view'
 import {updateUserSettings} from '../../support/updateUserSettings'
+import {expectTaskInNewTab} from '../../support/newTab'
 
 test.describe('Project View Gantt', () => {
 	test('Shows the correct start of the week in the date picker', async ({authenticatedPage: page, apiContext, userToken}) => {
@@ -145,7 +146,7 @@ test.describe('Project View Gantt', () => {
 		await expect(page.locator('.project-gantt .gantt-options .date-range-input__trigger')).toHaveText('Sep 25, 2022 – Nov 5, 2022')
 	})
 
-	test('Should open a task when double clicked on it', async ({authenticatedPage: page}) => {
+	test('Should open a task in a new tab when double clicked on it', async ({authenticatedPage: page}) => {
 		await ProjectFactory.create(1)
 		await ProjectViewFactory.create(1, {id: 2, project_id: 1, view_kind: 1})
 		const now = new Date()
@@ -155,33 +156,21 @@ test.describe('Project View Gantt', () => {
 		})
 		await page.goto('/projects/1/2')
 
-		await page.locator('.gantt-container .gantt-row-bars .gantt-bar').dblclick()
-
-		await expect(page).toHaveURL(new RegExp(`/tasks/${tasks[0].id}`))
+		await expectTaskInNewTab(page, tasks[0].id, () => page.locator('.gantt-container .gantt-row-bars .gantt-bar').dblclick())
 	})
 
-	test('Should preserve date range query parameters after opening and closing a task modal', async ({authenticatedPage: page}) => {
+	test('Should keep the date range when opening a task', async ({authenticatedPage: page}) => {
 		await ProjectFactory.create(1)
 		await ProjectViewFactory.create(1, {id: 2, project_id: 1, view_kind: 1})
-		await TaskFactory.create(1, {
+		const tasks = await TaskFactory.create(1, {
 			start_date: new Date(2022, 9, 1).toISOString(),
 			end_date: new Date(2022, 9, 5).toISOString(),
 		})
 		await page.goto('/projects/1/2?dateFrom=2022-09-25&dateTo=2022-11-05')
-
-		// Verify the date range is shown
 		await expect(page).toHaveURL(/dateFrom=2022-09-25/)
-		await expect(page).toHaveURL(/dateTo=2022-11-05/)
 
-		// Double-click the task to open the modal
-		await page.locator('.gantt-container .gantt-row-bars .gantt-bar').dblclick()
-		await expect(page).toHaveURL(/\/tasks\//)
-
-		// Close the modal
-		await page.locator('dialog[open] .modal-container > .close').click()
-
-		// Verify the date range query parameters are preserved
-		await expect(page).toHaveURL(/dateFrom=2022-09-25/)
+		// The helper also checks that the gantt page keeps its URL, query included.
+		await expectTaskInNewTab(page, tasks[0].id, () => page.locator('.gantt-container .gantt-row-bars .gantt-bar').dblclick())
 		await expect(page).toHaveURL(/dateTo=2022-11-05/)
 	})
 })

@@ -7,6 +7,7 @@ import {TaskBucketFactory} from '../../factories/task_buckets'
 import {TaskRelationFactory} from '../../factories/task_relation'
 import {TaskAssigneeFactory} from '../../factories/task_assignee'
 import {UserFactory} from '../../factories/user'
+import {expectTaskInNewTab} from '../../support/newTab'
 
 async function createKanbanTaskInBucket() {
 	const projects = await ProjectFactory.create(1)
@@ -41,10 +42,9 @@ test.describe('Task Bucket Select', () => {
 
 		await page.goto(`/projects/${project.id}/${view.id}`)
 		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-		await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+		const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click())
 
-		await expect(page.locator('.task-view .subtitle')).toContainText(buckets[0].title)
+		await expect(taskPage.locator('.task-view .subtitle')).toContainText(buckets[0].title)
 	})
 
 	test('Can change the bucket from the task detail view', async ({authenticatedPage: page}) => {
@@ -52,16 +52,15 @@ test.describe('Task Bucket Select', () => {
 
 		await page.goto(`/projects/${project.id}/${view.id}`)
 		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-		await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+		const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click())
 
 		// Click the bucket name to open the dropdown
-		await page.locator('.task-view .subtitle .bucket-name').click()
+		await taskPage.locator('.task-view .subtitle .bucket-name').click()
 		// Select the other bucket
-		await page.locator('.task-view .subtitle .dropdown-item').filter({hasText: buckets[1].title}).click()
+		await taskPage.locator('.task-view .subtitle .dropdown-item').filter({hasText: buckets[1].title}).click()
 
-		await expect(page.locator('.global-notification')).toContainText('Success')
-		await expect(page.locator('.task-view .subtitle')).toContainText(buckets[1].title)
+		await expect(taskPage.locator('.global-notification')).toContainText('Success')
+		await expect(taskPage.locator('.task-view .subtitle')).toContainText(buckets[1].title)
 	})
 
 	test('Does not show the bucket selector when project has no kanban view', async ({authenticatedPage: page}) => {
@@ -82,10 +81,9 @@ test.describe('Task Bucket Select', () => {
 		})
 
 		await page.goto(`/projects/${projects[0].id}/${views[0].id}`)
-		await page.locator('.tasks .task').filter({hasText: tasks[0].title}).click()
-		await expect(page).toHaveURL(new RegExp(`/tasks/${tasks[0].id}`))
+		const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => page.locator('.tasks .task').filter({hasText: tasks[0].title}).click())
 
-		await expect(page.locator('.task-view .subtitle .bucket-name')).not.toBeVisible()
+		await expect(taskPage.locator('.task-view .subtitle .bucket-name')).not.toBeVisible()
 	})
 
 	test.describe('Multiple kanban views', () => {
@@ -146,10 +144,9 @@ test.describe('Task Bucket Select', () => {
 			const {project, listView, task} = await createTaskWithMultipleKanbanViews()
 
 			await page.goto(`/projects/${project.id}/${listView.id}`)
-			await page.locator('.tasks .task').filter({hasText: task.title}).click()
-			await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+			const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.tasks .task').filter({hasText: task.title}).click())
 
-			await expect(page.locator('.task-view .subtitle .bucket-name')).not.toBeVisible()
+			await expect(taskPage.locator('.task-view .subtitle .bucket-name')).not.toBeVisible()
 		})
 
 		test('Shows the correct buckets when opening a task from the first kanban view', async ({authenticatedPage: page}) => {
@@ -157,14 +154,13 @@ test.describe('Task Bucket Select', () => {
 
 			await page.goto(`/projects/${project.id}/${kanbanView1.id}`)
 			await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-			await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-			await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+			const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click())
 
-			await expect(page.locator('.task-view .subtitle')).toContainText(bucketsView1[0].title)
-			await page.locator('.task-view .subtitle .bucket-name').click()
-			await expect(page.locator('.task-view .subtitle .dropdown-item')).toHaveCount(bucketsView1.length)
+			await expect(taskPage.locator('.task-view .subtitle')).toContainText(bucketsView1[0].title)
+			await taskPage.locator('.task-view .subtitle .bucket-name').click()
+			await expect(taskPage.locator('.task-view .subtitle .dropdown-item')).toHaveCount(bucketsView1.length)
 			for (const bucket of bucketsView1) {
-				await expect(page.locator('.task-view .subtitle .dropdown-item').filter({hasText: bucket.title})).toBeVisible()
+				await expect(taskPage.locator('.task-view .subtitle .dropdown-item').filter({hasText: bucket.title})).toBeVisible()
 			}
 		})
 
@@ -173,14 +169,13 @@ test.describe('Task Bucket Select', () => {
 
 			await page.goto(`/projects/${project.id}/${kanbanView2.id}`)
 			await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-			await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-			await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+			const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click())
 
-			await expect(page.locator('.task-view .subtitle')).toContainText(bucketsView2[0].title)
-			await page.locator('.task-view .subtitle .bucket-name').click()
-			await expect(page.locator('.task-view .subtitle .dropdown-item')).toHaveCount(bucketsView2.length)
+			await expect(taskPage.locator('.task-view .subtitle')).toContainText(bucketsView2[0].title)
+			await taskPage.locator('.task-view .subtitle .bucket-name').click()
+			await expect(taskPage.locator('.task-view .subtitle .dropdown-item')).toHaveCount(bucketsView2.length)
 			for (const bucket of bucketsView2) {
-				await expect(page.locator('.task-view .subtitle .dropdown-item').filter({hasText: bucket.title})).toBeVisible()
+				await expect(taskPage.locator('.task-view .subtitle .dropdown-item').filter({hasText: bucket.title})).toBeVisible()
 			}
 		})
 	})
@@ -190,14 +185,13 @@ test.describe('Task Bucket Select', () => {
 
 		await page.goto(`/projects/${project.id}/${view.id}`)
 		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-		await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+		const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click())
 
-		await page.locator('.task-view .subtitle .bucket-name').click()
-		const dropdownMenu = page.locator('.task-view .subtitle .dropdown-menu')
+		await taskPage.locator('.task-view .subtitle .bucket-name').click()
+		const dropdownMenu = taskPage.locator('.task-view .subtitle .dropdown-menu')
 		await expect(dropdownMenu).toBeVisible()
 
-		await page.locator('.task-view .subtitle .dropdown-item').filter({hasText: buckets[1].title}).click()
+		await taskPage.locator('.task-view .subtitle .dropdown-item').filter({hasText: buckets[1].title}).click()
 
 		await expect(dropdownMenu).toBeHidden()
 	})
@@ -217,14 +211,13 @@ test.describe('Task Bucket Select', () => {
 
 		await page.goto(`/projects/${project.id}/${view.id}`)
 		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-		await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+		const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click())
 
-		const removeButtons = page.locator('.task-view .column.assignees .remove-assignee')
+		const removeButtons = taskPage.locator('.task-view .column.assignees .remove-assignee')
 		await expect(removeButtons).toHaveCount(users.length)
 
-		await page.locator('.task-view .subtitle .bucket-name').click()
-		const dropdownMenu = page.locator('.task-view .subtitle .dropdown-menu')
+		await taskPage.locator('.task-view .subtitle .bucket-name').click()
+		const dropdownMenu = taskPage.locator('.task-view .subtitle .dropdown-menu')
 		await expect(dropdownMenu).toBeVisible()
 
 		const menuBox = (await dropdownMenu.boundingBox())!
@@ -244,7 +237,7 @@ test.describe('Task Bucket Select', () => {
 		expect(covered.length).toBeGreaterThan(0)
 
 		for (const point of covered) {
-			const dropdownIsOnTop = await page.evaluate(
+			const dropdownIsOnTop = await taskPage.evaluate(
 				({x, y}) => document.elementFromPoint(x, y)?.closest('.dropdown-menu') !== null,
 				point,
 			)
@@ -257,15 +250,14 @@ test.describe('Task Bucket Select', () => {
 
 		await page.goto(`/projects/${project.id}/${view.id}`)
 		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-		await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
+		const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click())
 
 		// Change the bucket
-		await page.locator('.task-view .subtitle .bucket-name').click()
-		await page.locator('.task-view .subtitle .dropdown-item').filter({hasText: buckets[1].title}).click()
-		await expect(page.locator('.global-notification')).toContainText('Success')
+		await taskPage.locator('.task-view .subtitle .bucket-name').click()
+		await taskPage.locator('.task-view .subtitle .dropdown-item').filter({hasText: buckets[1].title}).click()
+		await expect(taskPage.locator('.global-notification')).toContainText('Success')
 
 		// Action buttons should still be visible
-		await expect(page.locator('.task-view .action-buttons .button').filter({hasText: 'Done'})).toBeVisible()
+		await expect(taskPage.locator('.task-view .action-buttons .button').filter({hasText: 'Done'})).toBeVisible()
 	})
 })

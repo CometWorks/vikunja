@@ -1,15 +1,22 @@
+import type {Locator, Page} from '@playwright/test'
 import {test, expect} from '../../support/fixtures'
 import {ProjectFactory} from '../../factories/project'
 import {TaskFactory} from '../../factories/task'
 import {UserFactory} from '../../factories/user'
 import {createDefaultViews} from '../project/prepareProjects'
 import {login} from '../../support/authenticateUser'
+import {expectTaskInNewTab} from '../../support/newTab'
 
 async function openRelatedTasksForm(page) {
 	await page.locator('.task-view .action-buttons .button').filter({hasText: 'Add Relation'}).click()
 	const input = page.locator('.task-relations .multiselect input').first()
 	await expect(input).toBeVisible()
 	return input
+}
+
+async function openRelatedTask(page: Page, link: Locator) {
+	const taskId = Number((await link.getAttribute('href'))!.split('/').pop())
+	return expectTaskInNewTab(page, taskId, () => link.click())
 }
 
 function relationSearchResults(page) {
@@ -36,9 +43,8 @@ test.describe('Related tasks quick add magic', () => {
 		// Quick add magic strips the *Urgent prefix from the title
 		await expect(relatedTaskLink).not.toContainText('*Urgent')
 
-		await relatedTaskLink.click()
-		await expect(page).toHaveURL(/\/tasks\/\d+/)
-		await expect(page.locator('.task-view .details.labels-list .multiselect .input-wrapper span.tag').filter({hasText: 'Urgent'}))
+		const taskPage = await openRelatedTask(page, relatedTaskLink)
+		await expect(taskPage.locator('.task-view .details.labels-list .multiselect .input-wrapper span.tag').filter({hasText: 'Urgent'}))
 			.toBeVisible({timeout: 10000})
 	})
 
@@ -59,9 +65,9 @@ test.describe('Related tasks quick add magic', () => {
 		await expect(relatedTaskLink).toBeVisible({timeout: 10000})
 		await expect(relatedTaskLink).not.toContainText('!4')
 
-		await relatedTaskLink.click()
+		const taskPage = await openRelatedTask(page, relatedTaskLink)
 		// Priority 4 is "Urgent"
-		await expect(page.locator('.task-view .columns.details select').first()).toHaveValue('4', {timeout: 10000})
+		await expect(taskPage.locator('.task-view .columns.details select').first()).toHaveValue('4', {timeout: 10000})
 	})
 
 	test('Creates the related task in another project via +project prefix', async ({authenticatedPage: page}) => {

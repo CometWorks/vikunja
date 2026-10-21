@@ -1,11 +1,9 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {mount} from '@vue/test-utils'
 
-const push = vi.fn()
 vi.mock('vue-router', async (importOriginal) => ({
 	...await importOriginal<typeof import('vue-router')>(),
-	useRouter: () => ({push}),
-	useRoute: () => ({fullPath: '/projects/1/2'}),
+	useRouter: () => ({resolve: ({params}: {params: {id: number}}) => ({href: `/tasks/${params.id}`})}),
 }))
 
 import TaskLinkView from './TaskLinkView.vue'
@@ -40,20 +38,19 @@ function mountView(isEditable: boolean) {
 }
 
 describe('TaskLinkView', () => {
+	const open = vi.fn()
+
 	beforeEach(() => {
-		push.mockReset()
+		open.mockReset()
+		vi.stubGlobal('open', open)
 	})
 
-	it('opens the task as a modal over the current route when not editable', async () => {
+	it('opens the task in a new tab when not editable', async () => {
 		const wrapper = mountView(false)
 
 		await wrapper.find('a').trigger('click')
 
-		expect(push).toHaveBeenCalledWith({
-			name: 'task.detail',
-			params: {id: 5},
-			state: {backdropView: '/projects/1/2'},
-		})
+		expect(open).toHaveBeenCalledWith('/tasks/5', '_blank', 'noopener')
 	})
 
 	it('does not navigate while the editor is editable', async () => {
@@ -61,6 +58,6 @@ describe('TaskLinkView', () => {
 
 		await wrapper.find('a').trigger('click')
 
-		expect(push).not.toHaveBeenCalled()
+		expect(open).not.toHaveBeenCalled()
 	})
 })

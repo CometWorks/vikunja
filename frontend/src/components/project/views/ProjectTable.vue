@@ -245,7 +245,11 @@
 									:key="t.id"
 								>
 									<td v-if="activeColumns.index">
-										<RouterLink :to="taskDetailRoutes[t.id]">
+										<RouterLink
+											:to="taskDetailRoutes[t.id]"
+											target="_blank"
+											rel="noopener"
+										>
 											{{ getTaskIdentifier(t) }}
 										</RouterLink>
 									</td>
@@ -265,7 +269,11 @@
 									</td>
 									<td v-if="activeColumns.title">
 										<TaskGlanceTooltip :task="t">
-											<RouterLink :to="taskDetailRoutes[t.id]">
+											<RouterLink
+												:to="taskDetailRoutes[t.id]"
+												target="_blank"
+												rel="noopener"
+											>
 												{{ t.title }}
 											</RouterLink>
 										</TaskGlanceTooltip>
@@ -440,15 +448,12 @@ function setActiveColumnsSortParam() {
 		}, {})
 }
 
-// TODO: re-enable opening task detail in modal
-// const router = useRouter()
 const taskDetailRoutes = computed(() => Object.fromEntries(
 	tasks.value.map(({id}) => ([
 		id,
 		{
 			name: 'task.detail',
 			params: {id},
-			// state: { backdropView: router.currentRoute.value.fullPath },
 		},
 	])),
 ))

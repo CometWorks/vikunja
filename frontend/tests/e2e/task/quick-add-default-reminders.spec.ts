@@ -3,6 +3,7 @@ import {ProjectFactory} from '../../factories/project'
 import {UserFactory} from '../../factories/user'
 import {createDefaultViews} from '../project/prepareProjects'
 import {login} from '../../support/authenticateUser'
+import {expectTaskInNewTab} from '../../support/newTab'
 import {REMINDER_PERIOD_RELATIVE_TO_TYPES} from '../../../src/types/IReminderPeriodRelativeTo'
 import {SECONDS_A_HOUR} from '../../../src/constants/date'
 
@@ -37,10 +38,11 @@ test.describe('Quick add default reminders', () => {
 
 		const taskLink = page.locator('.tasks .task').filter({hasText: 'Buy milk'}).first().locator('a.task-link')
 		await expect(taskLink).toBeVisible({timeout: 10000})
-		await taskLink.click()
+		const taskId = Number((await taskLink.getAttribute('href'))!.split('/').pop())
+		const taskPage = await expectTaskInNewTab(page, taskId, () => taskLink.click())
 
 		// Reminders section auto-expands when the task already has reminders.
-		const reminderInput = page.locator('.task-view .columns.details .reminder-input').first()
+		const reminderInput = taskPage.locator('.task-view .columns.details .reminder-input').first()
 		await expect(reminderInput).toBeVisible({timeout: 10000})
 		await expect(reminderInput).toContainText('2 hours before Due Date')
 	})

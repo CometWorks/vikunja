@@ -332,6 +332,7 @@ import {
 	saveCollapsedBucketState,
 } from '@/helpers/saveCollapsedBucketState'
 import {calculateItemPosition} from '@/helpers/calculateItemPosition'
+import {openTaskInNewTab} from '@/helpers/openTaskInNewTab'
 
 import {getSavedFilterIdFromProjectId, isSavedFilterProject} from '@/client/queries/projects'
 import {savedFilterQuery} from '@/client/queries/savedFilters'
@@ -466,11 +467,7 @@ const router = useRouter()
 const touchStartY = ref(0)
 
 function openTask(task: TaskResponse) {
-	router.push({
-		name: 'task.detail',
-		params: {id: task.id},
-		state: {backdropView: router.currentRoute.value.fullPath},
-	})
+	openTaskInNewTab(router, task.id)
 }
 
 function onHandleTouchStart(e: TouchEvent) {
