@@ -116,6 +116,7 @@ import Loading from '@/components/misc/Loading.vue'
 
 import {MILLISECONDS_A_DAY} from '@/constants/date'
 import {roundToNaturalDayBoundary} from '@/helpers/time/roundToNaturalDayBoundary'
+import {openTaskInNewTab} from '@/helpers/openTaskInNewTab'
 
 const props = defineProps<{
 	isLoading: boolean,
@@ -565,11 +566,7 @@ function updateGanttTask(id: string, newStart: Date, newEnd: Date) {
 }
 
 function openTask(bar: GanttBarModel) {
-	router.push({
-		name: 'task.detail',
-		params: {id: bar.id},
-		state: {backdropView: router.currentRoute.value.fullPath},
-	})
+	openTaskInNewTab(router, bar.id)
 }
 
 // Double-click and drag detection

@@ -10,7 +10,6 @@
 			tabindex="-1"
 			:data-is-overdue="isOverdue || undefined"
 			@click="openTaskDetail"
-			@keyup.enter="openTaskDetail"
 		>
 			<span
 				v-tooltip="!canMarkAsDone ? $t('task.readOnlyCheckbox') : ''"
@@ -64,6 +63,8 @@
 							ref="taskLinkRef"
 							:to="taskDetailRoute"
 							class="task-link"
+							target="_blank"
+							rel="noopener"
 						>
 							{{ task.title }}
 						</RouterLink>
@@ -290,8 +291,6 @@ const {currentProject} = useCurrentProject()
 const taskDetailRoute = computed(() => ({
 	name: 'task.detail',
 	params: {id: task.value.id},
-	// TODO: re-enable opening task detail in modal
-	// state: { backdropView: router.currentRoute.value.fullPath },
 }))
 
 function updateDueDate() {

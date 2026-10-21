@@ -17,7 +17,9 @@ import {TaskAttachmentFactory} from '../../factories/task_attachments'
 import {TaskReminderFactory} from '../../factories/task_reminders'
 import {createDefaultViews} from '../project/prepareProjects'
 import {TaskBucketFactory} from '../../factories/task_buckets'
+import {TaskRelationFactory} from '../../factories/task_relation'
 import {pasteFile, pasteHtmlFromClipboard} from '../../support/commands'
+import {expectTaskInNewTab} from '../../support/newTab'
 import {login} from '../../support/authenticateUser'
 import type {Locator, Page} from '@playwright/test'
 import {readFileSync} from 'fs'
@@ -196,10 +198,10 @@ test.describe('Task', () => {
 			)
 			await page.goto('/projects/1/1')
 			await loadTasksPromise
-			await page.locator('.list-view .task').first().locator('a.task-link').click()
-			await expect(page.locator('.task-view .back-button')).toBeVisible()
-			await page.locator('.task-view .back-button').click()
-			await expect(page).toHaveURL(/\/projects\/1\/\d+/)
+			const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => page.locator('.list-view .task').first().locator('a.task-link').click())
+			await expect(taskPage.locator('.task-view .back-button')).toBeVisible()
+			await taskPage.locator('.task-view .back-button').click()
+			await expect(taskPage).toHaveURL(/\/projects\/1\/\d+/)
 		})
 
 		test('provides back navigation to the project in the table view', async ({authenticatedPage: page}) => {
@@ -209,13 +211,13 @@ test.describe('Task', () => {
 			)
 			await page.goto('/projects/1/3')
 			await loadTasksPromise
-			await page.locator('tbody tr').first().locator('a').first().click()
-			await expect(page.locator('.task-view .back-button')).toBeVisible()
-			await page.locator('.task-view .back-button').click()
-			await expect(page).toHaveURL(/\/projects\/1\/\d+/)
+			const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => page.locator('tbody tr').first().locator('a').first().click())
+			await expect(taskPage.locator('.task-view .back-button')).toBeVisible()
+			await taskPage.locator('.task-view .back-button').click()
+			await expect(taskPage).toHaveURL(/\/projects\/1\/\d+/)
 		})
 
-		test('provides close navigation to the project in the kanban view on mobile', async ({authenticatedPage: page}) => {
+		test('opens the task in a new tab with back navigation from the kanban view on mobile', async ({authenticatedPage: page}) => {
 			await page.setViewportSize({width: 375, height: 667}) // iphone-8
 
 			const tasks = await TaskFactory.create(1, {
@@ -234,14 +236,13 @@ test.describe('Task', () => {
 			// Wait for kanban view and task to be visible
 			const taskLocator = page.locator('.kanban-view .tasks .task').first()
 			await expect(taskLocator).toBeVisible({timeout: 10000})
-			await taskLocator.click()
-			// On mobile, the task opens as a modal with a close button instead of a back button
-			await expect(page.locator('.task-view .task-properties .close')).toBeVisible()
-			await page.locator('.task-view .task-properties .close').click()
-			await expect(page).toHaveURL(/\/projects\/\d+\/\d+/)
+			const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => taskLocator.click())
+			await expect(taskPage.locator('.task-view .task-properties .close')).toHaveCount(0)
+			await taskPage.locator('.task-view .back-button').click()
+			await expect(taskPage).toHaveURL(new RegExp(`/projects/${projects[0].id}/\\d+`))
 		})
 
-		test('does not provide back navigation to the project in the kanban view on desktop', async ({authenticatedPage: page}) => {
+		test('opens the task in a new tab with back navigation from the kanban view on desktop', async ({authenticatedPage: page}) => {
 			await page.setViewportSize({width: 1440, height: 900}) // macbook-15
 
 			const tasks = await TaskFactory.create(1, {
@@ -260,8 +261,36 @@ test.describe('Task', () => {
 			// Wait for kanban view and task to be visible
 			const taskLocator = page.locator('.kanban-view .tasks .task').first()
 			await expect(taskLocator).toBeVisible({timeout: 10000})
-			await taskLocator.click()
-			await expect(page.locator('.task-view .back-button')).not.toBeVisible()
+			const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => taskLocator.click())
+			await taskPage.locator('.task-view .back-button').click()
+			await expect(taskPage).toHaveURL(new RegExp(`/projects/${projects[0].id}/\\d+`))
+		})
+
+		test('opens a related task in a new tab', async ({authenticatedPage: page}) => {
+			const tasks = await TaskFactory.create(2, {
+				id: '{increment}',
+				project_id: projects[0].id,
+			})
+			await TaskRelationFactory.create(1, {id: 1, task_id: 1, other_task_id: 2, relation_kind: 'subtask'}, false)
+			await TaskRelationFactory.create(1, {id: 2, task_id: 2, other_task_id: 1, relation_kind: 'parenttask'}, false)
+			await page.goto('/tasks/1')
+
+			const link = page.locator('.task-view .related-tasks a').filter({hasText: tasks[1].title})
+			await expectTaskInNewTab(page, tasks[1].id, () => link.click())
+		})
+
+		test('opens a task linked in the description in a new tab', async ({authenticatedPage: page}) => {
+			const href = `${process.env.BASE_URL || 'http://127.0.0.1:4173'}/tasks/2`
+			const tasks = await TaskFactory.create(2, {
+				id: '{increment}',
+				project_id: projects[0].id,
+				description: `<p><a href="${href}">${href}</a></p>`,
+			})
+			await page.goto('/tasks/1')
+
+			const pill = page.locator('.task-view .details.content.description .task-link-pill--task')
+			await expect(pill).toContainText(tasks[1].title)
+			await expectTaskInNewTab(page, tasks[1].id, () => pill.click())
 		})
 
 		test('Shows a 404 page for nonexisting tasks', async ({authenticatedPage: page}) => {
@@ -510,17 +539,22 @@ test.describe('Task', () => {
 			await page.goto(`/projects/${projects[0].id}/4`)
 			const card = page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})
 			await expect(card).toBeVisible()
-			await card.click()
+			const taskPage = await expectTaskInNewTab(page, task.id, () => card.click())
 
-			await page.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'}).click()
-			await expect(page.locator('dialog[open] .modal-content .modal-header')).toContainText('Delete this task')
-			await page.locator('dialog[open] .modal-content .actions .button').filter({hasText: 'Do it!'}).click()
-			await expect(page.locator('.global-notification')).toContainText('Success')
+			// Load the board into the new tab's cache, then return to the task client-side.
+			await taskPage.locator('.task-view .back-button').click()
+			await expect(taskPage.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
+			await taskPage.goBack()
 
-			await expect(page).toHaveURL(/\/projects\/1\/\d+/)
-			await page.locator(`.switch-view-button[href^="/projects/${projects[0].id}/4"]`).click()
-			await expect(page.locator('.kanban .bucket .tasks')).toBeVisible()
-			await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toHaveCount(0)
+			await taskPage.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'}).click()
+			await expect(taskPage.locator('dialog[open] .modal-content .modal-header')).toContainText('Delete this task')
+			await taskPage.locator('dialog[open] .modal-content .actions .button').filter({hasText: 'Do it!'}).click()
+			await expect(taskPage.locator('.global-notification')).toContainText('Success')
+
+			await expect(taskPage).toHaveURL(/\/projects\/1\/\d+/)
+			await taskPage.locator(`.switch-view-button[href^="/projects/${projects[0].id}/4"]`).click()
+			await expect(taskPage.locator('.kanban .bucket .tasks')).toBeVisible()
+			await expect(taskPage.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toHaveCount(0)
 
 			await page.reload()
 			await expect(page.locator('.kanban .bucket .tasks')).toBeVisible()
@@ -773,12 +807,11 @@ test.describe('Task', () => {
 
 			await page.goto(`/projects/${projects[0].id}/4`)
 
-			await page.locator('.bucket .task').filter({hasText: tasks[0].title}).click()
+			const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => page.locator('.bucket .task').filter({hasText: tasks[0].title}).click())
 
-			await addLabelToTaskAndVerify(page, labels[0].title)
+			await addLabelToTaskAndVerify(taskPage, labels[0].title)
 
-			await page.locator('dialog[open] .modal-container > .close').click()
-
+			await page.reload()
 			await expect(page.locator('.bucket .task')).toContainText(labels[0].title)
 		})
 
@@ -1432,12 +1465,11 @@ test.describe('Task', () => {
 
 			await page.goto(`/projects/${projects[0].id}/4`)
 
-			await page.locator('.bucket .task').filter({hasText: tasks[0].title}).click()
+			const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => page.locator('.bucket .task').filter({hasText: tasks[0].title}).click())
 
-			await uploadAttachmentAndVerify(page, tasks[0].id)
+			await uploadAttachmentAndVerify(taskPage, tasks[0].id)
 
-			await page.locator('dialog[open] .modal-container > .close').click()
-
+			await page.reload()
 			await expect(page.locator('.bucket .task .footer .icon svg.fa-paperclip')).toBeVisible()
 		})
 

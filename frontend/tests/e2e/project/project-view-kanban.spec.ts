@@ -6,6 +6,7 @@ import {ProjectViewFactory} from '../../factories/project_view'
 import {TaskBucketFactory} from '../../factories/task_buckets'
 import {createTasksWithPriorities, createTasksWithSearch} from '../../support/filterTestHelpers'
 import {updateUserSettings} from '../../support/updateUserSettings'
+import {expectTaskInNewTab} from '../../support/newTab'
 
 async function createSingleTaskInBucket(count = 1, attrs = {}) {
 	const projects = await ProjectFactory.create(1)
@@ -138,10 +139,15 @@ test.describe('Project View Kanban', () => {
 
 		const sourceTask = page.locator('.kanban .bucket .tasks .task').filter({hasText: tasks[0].title}).first()
 		const targetBucket = page.locator('.kanban .bucket:nth-child(2) .tasks')
+		const moved = page.waitForResponse(r => /\/buckets\/\d+\/tasks$/.test(new URL(r.url()).pathname) && r.request().method() !== 'GET')
 		await sourceTask.dragTo(targetBucket)
+		await moved
 
 		await expect(page.locator('.kanban .bucket:nth-child(2) .tasks')).toContainText(tasks[0].title)
 		await expect(page.locator('.kanban .bucket:nth-child(1) .tasks')).not.toContainText(tasks[0].title)
+		// Ending the drag must not count as a click that opens the task.
+		expect(page.context().pages()).toHaveLength(1)
+		await expect(page.locator('dialog[open]')).toHaveCount(0)
 		await page.reload()
 		await expect(page.locator('.kanban .bucket:nth-child(2) .tasks')).toContainText(tasks[0].title)
 	})
@@ -189,14 +195,24 @@ test.describe('Project View Kanban', () => {
 		await expect(page.locator('.kanban .bucket:nth-child(2) .tasks')).not.toContainText(tasks[0].title)
 	})
 
-	test('Should navigate to the task when the task card is clicked', async ({authenticatedPage: page}) => {
+	test('Opens the task in a new tab when the task card is clicked', async ({authenticatedPage: page}) => {
 		const tasks = await createTaskWithBuckets(buckets, 5)
 		await page.goto('/projects/1/4')
 
-		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: tasks[0].title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: tasks[0].title}).click()
+		const card = page.locator('.kanban .bucket .tasks .task').filter({hasText: tasks[0].title})
+		await expect(card).toBeVisible()
+		const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => card.locator('.task-id').click())
+		await expect(taskPage.locator('.task-view .heading')).toContainText(tasks[0].title)
+	})
 
-		await expect(page).toHaveURL(new RegExp(`/tasks/${tasks[0].id}`), {timeout: 1000})
+	test('Opens the task in a new tab when the card title is clicked', async ({authenticatedPage: page}) => {
+		const tasks = await createTaskWithBuckets(buckets, 5)
+		await page.goto('/projects/1/4')
+
+		const title = page.locator('.kanban .bucket .tasks .task .kanban-card__title-link').filter({hasText: tasks[0].title})
+		await expect(title).toBeVisible()
+		await expectTaskInNewTab(page, tasks[0].id, () => title.click())
+		expect(page.context().pages()).toHaveLength(2)
 	})
 
 	test('Should mark a task done when ctrl-clicking its card', async ({authenticatedPage: page, apiContext, userToken}) => {
@@ -300,25 +316,25 @@ test.describe('Project View Kanban', () => {
 		const task = tasks[0]
 		await page.goto('/projects/1/' + views[0].id)
 
-		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
+		const card = page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})
+		await expect(card).toBeVisible()
+		const taskPage = await expectTaskInNewTab(page, task.id, () => card.click())
 
-		await page.locator('.task-view .action-buttons .button', {timeout: 3000}).filter({hasText: /^Move$/}).click()
-		const multiselectInput = page.locator('.task-view .content.details .field .multiselect.control .input-wrapper input')
+		await taskPage.locator('.task-view .action-buttons .button').filter({hasText: /^Move$/}).click()
+		const multiselectInput = taskPage.locator('.task-view .content.details .field .multiselect.control .input-wrapper input')
 		await expect(multiselectInput).toBeVisible({timeout: 5000})
 		await multiselectInput.click()
 		await multiselectInput.pressSequentially(projects[1].title)
 		// Wait for search results to appear before clicking
-		const searchResults = page.locator('.task-view .content.details .field .multiselect.control .search-results')
+		const searchResults = taskPage.locator('.task-view .content.details .field .multiselect.control .search-results')
 		await searchResults.waitFor({state: 'visible'})
 		await searchResults.locator('> *').first().click()
 
-		await expect(page.locator('.global-notification')).toContainText('Success', {timeout: 1000})
-		await page.goBack()
-		const bucketCount = await page.locator('.kanban .bucket').count()
-		for (let i = 0; i < bucketCount; i++) {
-			await expect(page.locator('.kanban .bucket').nth(i)).not.toContainText(task.title)
-		}
+		await expect(taskPage.locator('.global-notification')).toContainText('Success', {timeout: 1000})
+		await page.reload()
+		await page.waitForLoadState('networkidle')
+		await expect(page.locator('.kanban .bucket').first()).toBeVisible()
+		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toHaveCount(0)
 	})
 
 	test('Shows a button to filter the kanban board', async ({authenticatedPage: page}) => {
@@ -331,20 +347,19 @@ test.describe('Project View Kanban', () => {
 		const {task, view} = await createSingleTaskInBucket(5)
 		await page.goto(`/projects/1/${view.id}`)
 
-		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toBeVisible()
-		await page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title}).click()
-		await expect(page.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'})).toBeVisible()
-		await page.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'}).click()
-		await expect(page.locator('dialog[open] .modal-content .modal-header')).toContainText('Delete this task')
-		await page.locator('dialog[open] .modal-content .actions .button').filter({hasText: 'Do it!'}).click()
+		const card = page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})
+		await expect(card).toBeVisible()
+		const taskPage = await expectTaskInNewTab(page, task.id, () => card.click())
+		await taskPage.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'}).click()
+		await expect(taskPage.locator('dialog[open] .modal-content .modal-header')).toContainText('Delete this task')
+		await taskPage.locator('dialog[open] .modal-content .actions .button').filter({hasText: 'Do it!'}).click()
 
-		await expect(page.locator('.global-notification')).toContainText('Success')
+		await expect(taskPage.locator('.global-notification')).toContainText('Success')
 
-		await page.goBack()
-		const bucketCount = await page.locator('.kanban .bucket').count()
-		for (let i = 0; i < bucketCount; i++) {
-			await expect(page.locator('.kanban .bucket').nth(i)).not.toContainText(task.title)
-		}
+		await page.reload()
+		await page.waitForLoadState('networkidle')
+		await expect(page.locator('.kanban .bucket').first()).toBeVisible()
+		await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toHaveCount(0)
 	})
 
 	test('Should show a task description icon if the task has a description', async ({authenticatedPage: page}) => {
@@ -478,14 +493,11 @@ test.describe('Project View Kanban', () => {
 		await expect(countOf(0)).toHaveText('2')
 		await expect(countOf(1)).toHaveText('1')
 
-		await page.locator('.kanban .bucket').nth(1).locator('.tasks .task').filter({hasText: tasks[0].title}).click()
-		await page.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'}).click()
-		await page.locator('dialog[open] .modal-content .actions .button').filter({hasText: 'Do it!'}).click()
-		await expect(page.locator('.global-notification')).toContainText('Success')
-		// Deleting returns to the board
-		await expect(page).toHaveURL(/\/projects\/1\/4$/)
-		await expect(countOf(0)).toHaveText('2')
-		await expect(countOf(1)).toHaveCount(0)
+		const card = page.locator('.kanban .bucket').nth(1).locator('.tasks .task').filter({hasText: tasks[0].title})
+		const taskPage = await expectTaskInNewTab(page, tasks[0].id, () => card.click())
+		await taskPage.locator('.task-view .action-buttons .button').filter({hasText: 'Delete'}).click()
+		await taskPage.locator('dialog[open] .modal-content .actions .button').filter({hasText: 'Do it!'}).click()
+		await expect(taskPage.locator('.global-notification')).toContainText('Success')
 
 		await page.reload()
 		await expect(countOf(0)).toHaveText('2')

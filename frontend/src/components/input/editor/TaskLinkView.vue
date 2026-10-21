@@ -13,26 +13,22 @@
 
 <script lang="ts" setup>
 import {nodeViewProps, NodeViewWrapper} from '@tiptap/vue-3'
-import {useRoute, useRouter} from 'vue-router'
+import {useRouter} from 'vue-router'
 
-import type {Task as ITask} from '@/client/generated'
+import type {TaskResponse} from '@/client/queries/tasks'
+import {openTaskInNewTab} from '@/helpers/openTaskInNewTab'
 import TaskLinkPill from './TaskLinkPill.vue'
 
 const props = defineProps(nodeViewProps)
 const router = useRouter()
-const route = useRoute()
 
 // Checked at click time: node views are not re-rendered when the editor
 // toggles editable. In edit mode the pill only selects, like a mention.
-function open(task: ITask) {
+function open(task: TaskResponse) {
 	if (props.editor.isEditable) {
 		return
 	}
-	router.push({
-		name: 'task.detail',
-		params: {id: task.id},
-		state: {backdropView: route.fullPath},
-	})
+	openTaskInNewTab(router, task.id)
 }
 </script>
 

@@ -5,6 +5,7 @@ import {ProjectViewFactory} from '../../factories/project_view'
 import {TaskFactory} from '../../factories/task'
 import {BucketFactory} from '../../factories/bucket'
 import {TaskBucketFactory} from '../../factories/task_buckets'
+import {expectTaskInNewTab} from '../../support/newTab'
 
 for (const scope of ['favorites', 'saved filter']) {
 	test(`persists ${scope} task edits in its board response`, async ({authenticatedPage: page, apiContext, userToken}) => {
@@ -28,8 +29,8 @@ for (const scope of ['favorites', 'saved filter']) {
 		const taskSelector = scope === 'favorites' ? '.tasks .task' : '.kanban .task'
 		await page.goto(route)
 		await expect(page.locator(taskSelector).filter({hasText: task.title})).toBeVisible()
-		await page.locator(taskSelector).filter({hasText: task.title}).getByText(task.title, {exact: true}).click()
-		const heading = page.locator('.task-view h1[contenteditable]')
+		const taskPage = await expectTaskInNewTab(page, task.id, () => page.locator(taskSelector).filter({hasText: task.title}).getByText(task.title, {exact: true}).click())
+		const heading = taskPage.locator('.task-view h1[contenteditable]')
 		await heading.fill('After edit')
 		await heading.press('Enter')
 		await expect.poll(async () => {
@@ -76,20 +77,20 @@ test('moving a favourite task to another project keeps it in Favorites and drops
 	await page.goto(boardRoute)
 	const card = page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})
 	await expect(card).toBeVisible()
-	await card.click()
+	const taskPage = await expectTaskInNewTab(page, task.id, () => card.click())
 
-	await page.locator('.task-view .action-buttons .button').filter({hasText: /^Move$/}).click()
-	const projectInput = page.locator('.task-view .content.details .field .multiselect.control .input-wrapper input')
+	await taskPage.locator('.task-view .action-buttons .button').filter({hasText: /^Move$/}).click()
+	const projectInput = taskPage.locator('.task-view .content.details .field .multiselect.control .input-wrapper input')
 	await expect(projectInput).toBeVisible({timeout: 5000})
 	await projectInput.click()
 	await projectInput.pressSequentially(target.title, {delay: 20})
-	const searchResults = page.locator('.task-view .content.details .field .multiselect.control .search-results')
+	const searchResults = taskPage.locator('.task-view .content.details .field .multiselect.control .search-results')
 	await searchResults.waitFor({state: 'visible'})
 	await searchResults.locator('> *').first().click()
-	await expect(page.locator('.global-notification')).toContainText('Success')
+	await expect(taskPage.locator('.global-notification')).toContainText('Success')
 
-	// Back to the source board client-side: the card must be gone without a refetch.
-	await page.goBack()
+	// The task moved in its own tab, so the source board only sees it after a reload.
+	await page.reload()
 	await expect(page.locator('.kanban .bucket').first()).toBeVisible()
 	await expect(page.locator('.kanban .bucket .tasks .task').filter({hasText: task.title})).toHaveCount(0)
 

@@ -50,7 +50,9 @@ test('a reaction added in the task detail survives navigating away and back', as
 	})
 	await page.locator('.task-view nav.subtitle a').first().click()
 	await expect(page).toHaveURL(/\/projects\/1\/\d+/)
-	await page.locator('.tasks .task').filter({hasText: task.title}).getByText(task.title, {exact: true}).click()
+	// List rows open tasks in a new tab, so return through the browser history.
+	await expect(page.locator('.tasks .task').filter({hasText: task.title})).toBeVisible()
+	await page.goBack()
 	await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`))
 	for (const value of values) {
 		await expect(reactions.locator('.reaction-button').filter({hasText: value})).toBeVisible()

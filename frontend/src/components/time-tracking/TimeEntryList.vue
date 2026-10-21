@@ -54,6 +54,8 @@
 							<RouterLink
 								v-if="row.entry.task_id > 0"
 								:to="{ name: 'task.detail', params: { id: row.entry.task_id } }"
+								target="_blank"
+								rel="noopener"
 							>
 								{{ row.taskIdentifier }}{{ row.taskTitle ? ` - ${row.taskTitle}` : '' }}
 							</RouterLink>

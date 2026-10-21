@@ -4,8 +4,6 @@ import {test, expect} from '../../support/fixtures'
 import {ProjectFactory} from '../../factories/project'
 import {TaskFactory} from '../../factories/task'
 import {TaskCommentFactory} from '../../factories/task_comment'
-import {BucketFactory} from '../../factories/bucket'
-import {TaskBucketFactory} from '../../factories/task_buckets'
 import {createDefaultViews} from '../project/prepareProjects'
 
 const COMMENT_COUNT = 20
@@ -19,14 +17,6 @@ const contexts = [
 		name: 'task page',
 		inModal: false,
 		open: async (page: Page) => page.goto('/tasks/1'),
-	},
-	{
-		name: 'task modal on the kanban board',
-		inModal: true,
-		open: async (page: Page) => {
-			await page.goto('/projects/1/4')
-			await page.locator('.bucket .task').first().click()
-		},
 	},
 ]
 
@@ -46,16 +36,10 @@ function scrollState(page: Page, inModal: boolean) {
 test.describe('Task detail keyboard scrolling', () => {
 	test.beforeEach(async () => {
 		await ProjectFactory.create(1)
-		const views = await createDefaultViews(1)
-		const buckets = await BucketFactory.create(1, {project_view_id: views[3].id})
+		await createDefaultViews(1)
 		await TaskFactory.create(1, {
 			id: 1,
 			description: longDescription,
-		})
-		await TaskBucketFactory.create(1, {
-			task_id: 1,
-			bucket_id: buckets[0].id,
-			project_view_id: views[3].id,
 		})
 		await TaskCommentFactory.create(COMMENT_COUNT)
 	})

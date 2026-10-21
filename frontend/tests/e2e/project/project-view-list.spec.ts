@@ -5,6 +5,7 @@ import {TaskRelationFactory} from '../../factories/task_relation'
 import {UserFactory} from '../../factories/user'
 import {ProjectFactory} from '../../factories/project'
 import {createProjects} from './prepareProjects'
+import {expectTaskInNewTab} from '../../support/newTab'
 import {BucketFactory} from '../../factories/bucket'
 import {createTasksWithPriorities, createTasksWithSearch} from '../../support/filterTestHelpers'
 
@@ -71,7 +72,7 @@ test.describe('Project View List', () => {
 		await expect(page.locator('.subtask-nested')).toContainText('Sub multi task')
 	})
 
-	test('Should navigate to the task when the title is clicked', async ({authenticatedPage: page}) => {
+	test('Opens the task in a new tab when the title is clicked', async ({authenticatedPage: page}) => {
 		await createProjects(1)
 		const tasks = await TaskFactory.create(5, {
 			id: '{increment}',
@@ -79,9 +80,45 @@ test.describe('Project View List', () => {
 		})
 		await page.goto('/projects/1/1')
 
-		await page.locator('.tasks .task .tasktext').filter({hasText: tasks[0].title}).first().click()
+		const title = page.locator('.tasks .task .tasktext .task-link').filter({hasText: tasks[0].title}).first()
+		await expectTaskInNewTab(page, tasks[0].id, () => title.click())
+	})
 
-		await expect(page).toHaveURL(new RegExp(`/tasks/${tasks[0].id}`))
+	test('Opens the task in a new tab when the row is clicked', async ({authenticatedPage: page}) => {
+		await createProjects(1)
+		const tasks = await TaskFactory.create(5, {
+			id: '{increment}',
+			project_id: 1,
+		})
+		await page.goto('/projects/1/1')
+
+		const row = page.locator('.tasks .single-task').filter({hasText: tasks[0].title}).first()
+		await expect(row).toBeVisible()
+		const box = (await row.boundingBox())!
+		// The blank space between the title and the favorite star.
+		await expectTaskInNewTab(page, tasks[0].id, () => row.click({position: {x: box.width * 0.7, y: box.height / 2}}))
+		await expect(row.locator('.tasktext')).not.toHaveClass(/done/)
+	})
+
+	test('Opens one new tab when Enter is pressed on a row focused with J', async ({authenticatedPage: page}) => {
+		await createProjects(1)
+		const tasks = await TaskFactory.create(5, {
+			id: '{increment}',
+			project_id: 1,
+		})
+		await page.goto('/projects/1/1')
+		await expect(page.locator('.tasks .single-task').first()).toBeVisible()
+		// The add-task input may have focus, and J/K are ignored in inputs.
+		await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+
+		await page.keyboard.press('j')
+		const focused = page.locator('.tasks .single-task:focus')
+		await expect(focused).toBeVisible()
+		const title = await focused.locator('.task-link').innerText()
+		const task = tasks.find(t => t.title === title.trim())!
+
+		await expectTaskInNewTab(page, task.id, () => page.keyboard.press('Enter'))
+		expect(page.context().pages()).toHaveLength(2)
 	})
 
 	test('Should not see any elements for a project which is shared read only', async ({authenticatedPage: page}) => {

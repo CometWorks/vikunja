@@ -1,4 +1,5 @@
 import {test, expect} from '../../support/fixtures'
+import {expectTaskInNewTab} from '../../support/newTab'
 import {TaskFactory} from '../../factories/task'
 import {createProjects} from './prepareProjects'
 import {createTasksWithPriorities, createTasksWithSearch} from '../../support/filterTestHelpers'
@@ -70,7 +71,7 @@ test.describe('Project View Table', () => {
 		}
 	})
 
-	test('Should navigate to the task when the title is clicked', async ({authenticatedPage: page}) => {
+	test('Opens the task in a new tab when the title is clicked', async ({authenticatedPage: page}) => {
 		await createProjects(1)
 		await TaskFactory.create(5, {
 			id: '{increment}',
@@ -82,9 +83,9 @@ test.describe('Project View Table', () => {
 		await page.goto('/projects/1/3')
 		await loadTasksPromise
 
-		await page.locator('.project-table table.table tbody tr').first().locator('a').first().click()
-
-		await expect(page).toHaveURL(/\/tasks\/\d+/)
+		const link = page.locator('.project-table table.table tbody tr').first().locator('a').first()
+		const taskId = Number((await link.getAttribute('href'))!.split('/').pop())
+		await expectTaskInNewTab(page, taskId, () => link.click())
 	})
 
 	test('Should respect filter query parameter from URL', async ({authenticatedPage: page}) => {

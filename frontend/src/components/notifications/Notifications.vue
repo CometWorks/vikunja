@@ -185,6 +185,11 @@ async function to(n: NotificationRow) {
 	if (!n.route) return
 	readMutation.mutate(n.id)
 	showNotifications.value = false
+	const target = router.resolve(n.route)
+	if (target.name === 'task.detail') {
+		window.open(target.href, '_blank', 'noopener')
+		return
+	}
 	const failure = await router.push(n.route)
 	if (isNavigationFailure(failure, NavigationFailureType.duplicated)) router.go(0)
 }
