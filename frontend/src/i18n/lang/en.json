@@ -1231,7 +1231,9 @@
       "usedAsCover": "Cover image",
       "play": "Play",
       "playFile": "Play {file}",
-      "audioError": "Could not play this audio file."
+      "audioError": "Could not play this audio file.",
+      "sortNameAsc": "Name (A–Z)",
+      "sortNameDesc": "Name (Z–A)"
     },
     "comment": {
       "title": "Comments",

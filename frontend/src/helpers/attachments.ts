@@ -69,3 +69,23 @@ export async function downloadAttachment(attachment: TaskAttachment) {
 export function generateAttachmentUrl(taskId: number, attachmentId: number) {
 	return `${getApiBaseUrl()}/tasks/${taskId}/attachments/${attachmentId}`
 }
+
+// The order the sort button cycles through, newest first is the default
+export const ATTACHMENT_SORT_MODES = [
+	'created-desc',
+	'created-asc',
+	'name-asc',
+	'name-desc',
+] as const
+export type AttachmentSortMode = typeof ATTACHMENT_SORT_MODES[number]
+
+const nameCollator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'})
+
+export function sortAttachments(attachments: TaskAttachment[], mode: AttachmentSortMode): TaskAttachment[] {
+	const [field, order] = mode.split('-')
+	const sorted = [...attachments].sort((a, b) => field === 'name'
+		? nameCollator.compare(a.file?.name ?? '', b.file?.name ?? '')
+		// ISO timestamps from the API compare correctly as strings
+		: (a.created ?? '').localeCompare(b.created ?? ''))
+	return order === 'desc' ? sorted.reverse() : sorted
+}

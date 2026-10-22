@@ -1,6 +1,12 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
 
-import {fetchAttachmentBlob, fetchAttachmentUrl, generateAttachmentUrl, releaseAttachmentUrl} from './attachments'
+import {
+	fetchAttachmentBlob,
+	fetchAttachmentUrl,
+	generateAttachmentUrl,
+	releaseAttachmentUrl,
+	sortAttachments,
+} from './attachments'
 import {queryClient} from '@/client/queryClient'
 import {attachmentKeys} from '@/client/queries/attachments'
 
@@ -224,5 +230,41 @@ describe('generateAttachmentUrl', () => {
 	it('points at the attachment under the configured API base', () => {
 		requestContext.apiBaseUrl = 'https://x/prefix/api/v2'
 		expect(generateAttachmentUrl(5, 9)).toBe('https://x/prefix/api/v2/tasks/5/attachments/9')
+	})
+})
+
+describe('sortAttachments', () => {
+	const attachments = [
+		{
+			id: 1,
+			created: '2026-01-02T00:00:00Z',
+			file: {name: 'b.txt'},
+		},
+		{
+			id: 2,
+			created: '2026-01-03T00:00:00Z',
+			file: {name: 'file10.txt'},
+		},
+		{
+			id: 3,
+			created: '2026-01-01T00:00:00Z',
+			file: {name: 'File2.txt'},
+		},
+	]
+	const ids = (mode: Parameters<typeof sortAttachments>[1]) => sortAttachments(attachments, mode).map(a => a.id)
+
+	it('sorts by upload time', () => {
+		expect(ids('created-desc')).toEqual([2, 1, 3])
+		expect(ids('created-asc')).toEqual([3, 1, 2])
+	})
+
+	it('sorts by filename, ignoring case and comparing numbers by value', () => {
+		expect(ids('name-asc')).toEqual([1, 3, 2])
+		expect(ids('name-desc')).toEqual([2, 3, 1])
+	})
+
+	it('leaves the input untouched', () => {
+		sortAttachments(attachments, 'name-asc')
+		expect(attachments.map(a => a.id)).toEqual([1, 2, 3])
 	})
 })

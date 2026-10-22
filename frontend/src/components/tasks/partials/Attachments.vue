@@ -1,10 +1,20 @@
 <template>
 	<div class="attachments">
-		<h2 class="task-section-title">
-			<span class="icon is-grey">
-				<Icon icon="paperclip" />
+		<h2 class="attachments-heading task-section-title">
+			<span>
+				<span class="icon is-grey">
+					<Icon icon="paperclip" />
+				</span>
+				{{ $t('task.attachment.title') }}
 			</span>
-			{{ $t('task.attachment.title') }}
+			<BaseButton
+				v-if="attachments.length > 1"
+				class="attachment-sort-button"
+				@click="cycleSortMode"
+			>
+				<Icon :icon="sortMode.endsWith('asc') ? 'arrow-down-short-wide' : 'arrow-up-short-wide'" />
+				{{ $t(SORT_MODE_LABELS[sortMode]) }}
+			</BaseButton>
 		</h2>
 
 		<input
@@ -228,7 +238,7 @@
 
 <script setup lang="ts">
 import {ref, computed, nextTick, watch, onMounted, onBeforeUnmount, type ComponentPublicInstance} from 'vue'
-import {useDropZone} from '@vueuse/core'
+import {useDropZone, useStorage} from '@vueuse/core'
 
 import User from '@/components/misc/User.vue'
 import ProgressBar from '@/components/misc/ProgressBar.vue'
@@ -242,7 +252,15 @@ import type {TaskAttachment as IAttachment} from '@/client/generated'
 import type {Task as ITask} from '@/client/generated'
 
 import {formatDateLong} from '@/helpers/time/formatDate'
-import {downloadAttachment, fetchAttachmentUrl, generateAttachmentUrl, releaseAttachmentUrl} from '@/helpers/attachments'
+import {
+	ATTACHMENT_SORT_MODES,
+	downloadAttachment,
+	fetchAttachmentUrl,
+	generateAttachmentUrl,
+	releaseAttachmentUrl,
+	sortAttachments,
+	type AttachmentSortMode,
+} from '@/helpers/attachments'
 import {downloadBlob} from '@/helpers/downloadBlob'
 import {getHumanSize} from '@/helpers/getHumanSize'
 import {useCopyToClipboard} from '@/composables/useCopyToClipboard'
@@ -287,7 +305,25 @@ function eventTargetsEditor(event: Event | null | undefined): boolean {
 const updateTask = useUpdateTaskMutation()
 const {t} = useI18n({useScope: 'global'})
 
-const attachments = computed(() => props.task.attachments ?? [])
+const SORT_MODE_LABELS: Record<AttachmentSortMode, string> = {
+	'created-desc': 'task.comment.sortNewestFirst',
+	'created-asc': 'task.comment.sortOldestFirst',
+	'name-asc': 'task.attachment.sortNameAsc',
+	'name-desc': 'task.attachment.sortNameDesc',
+}
+
+const storedSortMode = useStorage<AttachmentSortMode>('attachmentSortMode', 'created-desc')
+// a stale or hand-edited value falls back to the default
+const sortMode = computed(() => ATTACHMENT_SORT_MODES.includes(storedSortMode.value)
+	? storedSortMode.value
+	: 'created-desc')
+
+function cycleSortMode() {
+	const next = (ATTACHMENT_SORT_MODES.indexOf(sortMode.value) + 1) % ATTACHMENT_SORT_MODES.length
+	storedSortMode.value = ATTACHMENT_SORT_MODES[next]!
+}
+
+const attachments = computed(() => sortAttachments(props.task.attachments ?? [], sortMode.value))
 const uploadMutation = useUploadAttachmentsMutation()
 const deleteMutation = useDeleteAttachmentMutation()
 const uploadBatch = ref<{
@@ -623,6 +659,25 @@ defineExpose({openFilePicker})
 		.button {
 			inline-size: 100%;
 		}
+	}
+}
+
+.attachments-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.attachment-sort-button {
+	font-size: .75rem;
+	font-weight: normal;
+	color: var(--grey-500);
+	display: inline-flex;
+	align-items: center;
+	gap: .25rem;
+
+	&:hover {
+		color: var(--grey-700);
 	}
 }
 
