@@ -6,10 +6,21 @@
 					v-if="task.hex_color !== ''"
 					:color="getHexColor(task.hex_color)"
 				/>
-				<BaseButton @click="copyUrl">
+				<BaseButton
+					v-tooltip="$t('task.detail.copyIdentifier')"
+					@click="copyIdentifier"
+				>
 					<span class="title task-id">
 						{{ textIdentifier }}
 					</span>
+				</BaseButton>
+				<BaseButton
+					v-tooltip="$t('task.detail.copyLink')"
+					:aria-label="$t('task.detail.copyLink')"
+					class="task-link d-print-none"
+					@click="copyUrl"
+				>
+					<Icon icon="link" />
 				</BaseButton>
 			</div>
 			<Done
@@ -75,7 +86,7 @@ import {ref, computed, onMounted, onBeforeUnmount, watch} from 'vue'
 import {useRouter} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 
-import {error} from '@/message'
+import {error, success} from '@/message'
 import BaseButton from '@/components/base/BaseButton.vue'
 import CustomTransition from '@/components/misc/CustomTransition.vue'
 import ColorBubble from '@/components/misc/ColorBubble.vue'
@@ -87,7 +98,7 @@ import {useDelayedLoading} from '@/composables/useDelayedLoading'
 import {useUpdateTaskMutation} from '@/client/queries/taskMutations'
 
 import type {Task as ITask} from '@/client/generated'
-import {getHexColor, getTaskIdentifier} from '@/helpers/task'
+import {getHexColor, getTaskIdentifier, getTaskRouteId} from '@/helpers/task'
 
 const props = defineProps<{
 	task: ITask,
@@ -104,11 +115,15 @@ const router = useRouter()
 const copy = useCopyToClipboard()
 const {t} = useI18n({useScope: 'global'})
 
-async function copyUrl() {
-	const route = router.resolve({name: 'task.detail', query: {taskId: props.task.id}})
-	const absoluteURL = new URL(route.href, window.location.href).href
+async function copyIdentifier() {
+	await copy(textIdentifier.value)
+	success({message: t('task.detail.identifierCopied', {identifier: textIdentifier.value})})
+}
 
-	await copy(absoluteURL)
+async function copyUrl() {
+	const route = router.resolve({name: 'task.detail', params: {id: getTaskRouteId(props.task)}})
+	await copy(new URL(route.href, window.location.href).href)
+	success({message: t('task.detail.linkCopied')})
 }
 
 const updateTask = useUpdateTaskMutation()
@@ -262,6 +277,10 @@ async function cancel(element: HTMLInputElement) {
 .title.task-id {
 	color: var(--grey-400);
 	white-space: nowrap;
+}
+
+.task-link {
+	color: var(--grey-400);
 }
 
 .color-bubble {

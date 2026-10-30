@@ -48,6 +48,12 @@ export function getTaskIdentifier(task: Pick<Task, 'identifier' | 'index'> | nul
 		: `#${task.index ?? 0}`
 }
 
+// Links name the task by its identifier (VI-11) when its project has one, by its id otherwise.
+export function getTaskRouteId(task: Pick<Task, 'id' | 'identifier' | 'index'>): string | number {
+	const identifier = getTaskIdentifier(task)
+	return identifier.startsWith('#') ? task.id! : identifier
+}
+
 export function getHexColor(color?: string): string | undefined {
 	if (!color || color === '#') return undefined
 	return color.startsWith('#') ? color : `#${color}`

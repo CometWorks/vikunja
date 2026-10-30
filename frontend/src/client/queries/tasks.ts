@@ -1,5 +1,5 @@
 import {queryOptions, type QueryKey} from '@tanstack/vue-query'
-import {projectTasksList, projectViewTasksList, tasksList, tasksRead} from '@/client/generated'
+import {projectTasksList, projectViewTasksList, tasksList, tasksRead, tasksReadByIndex} from '@/client/generated'
 import type {
 	Label,
 	PaginatedTask,
@@ -180,6 +180,29 @@ export function taskQuery(id: number, expand: TaskExpansion = []) {
 		})).data),
 		enabled: id > 0,
 	})
+}
+
+const resolvedTaskIds = new Map<string, number>()
+
+// A task route param is either a task id or an identifier like "VI-11" resolved by resolveTaskIdentifier.
+export function taskIdFromRouteParam(param: string): number {
+	return /^\d+$/.test(param) ? Number(param) : resolvedTaskIds.get(param.toUpperCase()) ?? 0
+}
+
+// Returns 0 when the identifier names no task the user can see.
+export async function resolveTaskIdentifier(identifier: string): Promise<number> {
+	const key = identifier.toUpperCase()
+	const match = /^(.+)-(\d+)$/.exec(key)
+	if (!match) return 0
+	if (!resolvedTaskIds.has(key)) {
+		try {
+			const {data} = await tasksReadByIndex({path: {project: match[1], index: Number(match[2])}})
+			resolvedTaskIds.set(key, data.id!)
+		} catch {
+			return 0
+		}
+	}
+	return resolvedTaskIds.get(key)!
 }
 
 export function tasksQuery(scope: TaskScope = {}, requestedPage = 1) {

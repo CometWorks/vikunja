@@ -1,9 +1,10 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {QueryClient} from '@tanstack/vue-query'
-import {normalizeTask, taskKeys, taskQuery, tasksQuery, allTasksQuery} from './tasks'
+import {normalizeTask, taskKeys, taskQuery, tasksQuery, allTasksQuery, resolveTaskIdentifier, taskIdFromRouteParam} from './tasks'
 import {bucketHasMore, bucketKeys, bucketsQuery, kanbanKeys, kanbanQuery, TASKS_PER_BUCKET} from './kanban'
 const sdk = vi.hoisted(() => ({
 	tasksRead: vi.fn(),
+	tasksReadByIndex: vi.fn(),
 	tasksList: vi.fn(),
 	projectTasksList: vi.fn(),
 	projectViewTasksList: vi.fn(),
@@ -23,6 +24,17 @@ describe('task queries', () => {
 			path: {task: 1},
 			query: {expand: ['buckets']},
 		}))
+	})
+	it('resolves task identifiers in route params', async () => {
+		sdk.tasksReadByIndex.mockResolvedValue({data: {id: 1564}})
+		expect(taskIdFromRouteParam('1564')).toBe(1564)
+		expect(taskIdFromRouteParam('vi-11')).toBe(0)
+		expect(await resolveTaskIdentifier('vi-11')).toBe(1564)
+		expect(sdk.tasksReadByIndex).toHaveBeenCalledWith({path: {project: 'VI', index: 11}})
+		expect(taskIdFromRouteParam('VI-11')).toBe(1564)
+		expect(await resolveTaskIdentifier('nonsense')).toBe(0)
+		sdk.tasksReadByIndex.mockRejectedValue(new Error('404'))
+		expect(await resolveTaskIdentifier('VI-12')).toBe(0)
 	})
 	it('keeps the permission the read-one body adds', async () => {
 		sdk.tasksRead.mockResolvedValue({data: {id: 1, max_permission: 2}})

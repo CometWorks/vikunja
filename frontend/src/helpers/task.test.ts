@@ -4,6 +4,7 @@ import {
 	createTaskDraft,
 	createReminderDraft,
 	getTaskIdentifier,
+	getTaskRouteId,
 	getHexColor,
 	parseRepeatAfter,
 	repeatAfterToSeconds,
@@ -53,6 +54,8 @@ describe('task domain helpers', () => {
 		expect(getTaskIdentifier({identifier: '-2', index: 2})).toBe('#2')
 		expect(getTaskIdentifier({index: 2})).toBe('#2')
 		expect(getTaskIdentifier(null)).toBe('')
+		expect(getTaskRouteId({id: 7, identifier: 'WORK-2', index: 2})).toBe('WORK-2')
+		expect(getTaskRouteId({id: 7, identifier: '-2', index: 2})).toBe(7)
 		expect(getHexColor('aabbcc')).toBe('#aabbcc')
 		expect(getHexColor('#aabbcc')).toBe('#aabbcc')
 		expect(getHexColor('#')).toBeUndefined()

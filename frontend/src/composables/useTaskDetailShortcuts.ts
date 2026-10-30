@@ -1,7 +1,8 @@
 import {ref, onMounted, onBeforeUnmount} from 'vue'
+import {useRouter} from 'vue-router'
 import {eventToShortcutString, isFormField} from '@/helpers/shortcut'
 
-import {getTaskIdentifier} from '@/helpers/task'
+import {getTaskIdentifier, getTaskRouteId} from '@/helpers/task'
 import type {Task as ITask} from '@/client/generated'
 
 interface UseTaskDetailShortcutsOptions {
@@ -38,6 +39,13 @@ export function useTaskDetailShortcuts({
 	onSave,
 	scrollContainer,
 }: UseTaskDetailShortcutsOptions) {
+	const router = useRouter()
+
+	function taskUrl() {
+		const route = router.resolve({name: 'task.detail', params: {id: getTaskRouteId(task())}})
+		return new URL(route.href, window.location.href).href
+	}
+
 	const dotKeyPressedTimes = ref(0)
 	const dotKeyCopyValue = ref('')
 	let dotKeyPressedTimeout: ReturnType<typeof setTimeout> | null = null
@@ -84,7 +92,7 @@ export function useTaskDetailShortcuts({
 		}
 
 		if (shortcutString === 'Control+Period') {
-			await copySavely(window.location.href)
+			await copySavely(taskUrl())
 			return
 		}
 
@@ -106,7 +114,7 @@ export function useTaskDetailShortcuts({
 					dotKeyCopyValue.value += ' - ' + taskTitle()
 					break
 				case 3:
-					dotKeyCopyValue.value += ' - ' + window.location.href
+					dotKeyCopyValue.value += ' - ' + taskUrl()
 					break
 				default:
 					resetDotKeyPressed()
