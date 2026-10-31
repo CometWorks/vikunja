@@ -7,7 +7,7 @@
 					:color="getHexColor(task.hex_color)"
 				/>
 				<BaseButton
-					v-tooltip="$t('task.detail.copyIdentifier')"
+					v-tooltip="$t('keyboardShortcuts.task.copyIdentifier')"
 					@click="copyIdentifier"
 				>
 					<span class="title task-id">
@@ -15,9 +15,9 @@
 					</span>
 				</BaseButton>
 				<BaseButton
-					v-tooltip="$t('task.detail.copyLink')"
-					:aria-label="$t('task.detail.copyLink')"
-					class="task-link d-print-none"
+					v-tooltip="$t('keyboardShortcuts.task.copyUrl')"
+					:aria-label="$t('keyboardShortcuts.task.copyUrl')"
+					class="copy-link d-print-none"
 					@click="copyUrl"
 				>
 					<Icon icon="link" />
@@ -98,7 +98,7 @@ import {useDelayedLoading} from '@/composables/useDelayedLoading'
 import {useUpdateTaskMutation} from '@/client/queries/taskMutations'
 
 import type {Task as ITask} from '@/client/generated'
-import {getHexColor, getTaskIdentifier, getTaskRouteId} from '@/helpers/task'
+import {getHexColor, getTaskIdentifier, getTaskUrl} from '@/helpers/task'
 
 const props = defineProps<{
 	task: ITask,
@@ -121,8 +121,7 @@ async function copyIdentifier() {
 }
 
 async function copyUrl() {
-	const route = router.resolve({name: 'task.detail', params: {id: getTaskRouteId(props.task)}})
-	await copy(new URL(route.href, window.location.href).href)
+	await copy(getTaskUrl(router, props.task))
 	success({message: t('task.detail.linkCopied')})
 }
 
@@ -279,7 +278,7 @@ async function cancel(element: HTMLInputElement) {
 	white-space: nowrap;
 }
 
-.task-link {
+.copy-link {
 	color: var(--grey-400);
 }
 

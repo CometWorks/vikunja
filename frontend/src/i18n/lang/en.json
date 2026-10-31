@@ -1167,8 +1167,6 @@
         "favorite": "Add to Favorites",
         "unfavorite": "Remove from Favorites"
       },
-      "copyIdentifier": "Copy the task identifier",
-      "copyLink": "Copy a link to this task",
       "identifierCopied": "Copied {identifier} to the clipboard.",
       "linkCopied": "Copied the task link to the clipboard.",
       "conflict": {

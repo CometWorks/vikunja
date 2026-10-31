@@ -1,3 +1,4 @@
+import type {Router} from 'vue-router'
 import type {Bucket, ProjectView, Task, TaskReminder, User} from '@/client/generated'
 import {REPEAT_TYPES, type IRepeatAfter} from '@/types/IRepeatAfter'
 import {TASK_REPEAT_MODES} from '@/types/IRepeatMode'
@@ -49,9 +50,11 @@ export function getTaskIdentifier(task: Pick<Task, 'identifier' | 'index'> | nul
 }
 
 // Links name the task by its identifier (VI-11) when its project has one, by its id otherwise.
-export function getTaskRouteId(task: Pick<Task, 'id' | 'identifier' | 'index'>): string | number {
+// The API reads an all-digit project segment as a project id, so those identifiers can't be used either.
+export function getTaskUrl(router: Router, task: Pick<Task, 'id' | 'identifier' | 'index'>): string {
 	const identifier = getTaskIdentifier(task)
-	return identifier.startsWith('#') ? task.id! : identifier
+	const id = identifier.startsWith('#') || /^\d+-/.test(identifier) ? task.id! : identifier
+	return new URL(router.resolve({name: 'task.detail', params: {id}}).href, window.location.href).href
 }
 
 export function getHexColor(color?: string): string | undefined {

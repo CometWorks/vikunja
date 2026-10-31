@@ -189,7 +189,7 @@ export function taskIdFromRouteParam(param: string): number {
 	return /^\d+$/.test(param) ? Number(param) : resolvedTaskIds.get(param.toUpperCase()) ?? 0
 }
 
-// Returns 0 when the identifier names no task the user can see.
+// Returns 0 when the lookup fails, whether the task doesn't exist or the request did not go through.
 export async function resolveTaskIdentifier(identifier: string): Promise<number> {
 	const key = identifier.toUpperCase()
 	const match = /^(.+)-(\d+)$/.exec(key)
