@@ -1167,6 +1167,8 @@
         "favorite": "Add to Favorites",
         "unfavorite": "Remove from Favorites"
       },
+      "identifierCopied": "Copied {identifier} to the clipboard.",
+      "linkCopied": "Copied the task link to the clipboard.",
       "conflict": {
         "title": "Changed by someone else",
         "text": "{field} was changed by someone else while you were editing it. Which version do you want to keep?",

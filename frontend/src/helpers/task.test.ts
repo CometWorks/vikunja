@@ -1,9 +1,11 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import type {Router} from 'vue-router'
 import {createPinia, setActivePinia} from 'pinia'
 import {
 	createTaskDraft,
 	createReminderDraft,
 	getTaskIdentifier,
+	getTaskUrl,
 	getHexColor,
 	parseRepeatAfter,
 	repeatAfterToSeconds,
@@ -53,6 +55,10 @@ describe('task domain helpers', () => {
 		expect(getTaskIdentifier({identifier: '-2', index: 2})).toBe('#2')
 		expect(getTaskIdentifier({index: 2})).toBe('#2')
 		expect(getTaskIdentifier(null)).toBe('')
+		const router = {resolve: ({params}: {params: {id: string | number}}) => ({href: `/tasks/${params.id}`})} as unknown as Router
+		expect(getTaskUrl(router, {id: 7, identifier: 'WORK-2', index: 2})).toMatch(/\/tasks\/WORK-2$/)
+		expect(getTaskUrl(router, {id: 7, identifier: '-2', index: 2})).toMatch(/\/tasks\/7$/)
+		expect(getTaskUrl(router, {id: 7, identifier: '123-2', index: 2})).toMatch(/\/tasks\/7$/)
 		expect(getHexColor('aabbcc')).toBe('#aabbcc')
 		expect(getHexColor('#aabbcc')).toBe('#aabbcc')
 		expect(getHexColor('#')).toBeUndefined()

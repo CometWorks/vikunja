@@ -15,6 +15,7 @@ import {error, success} from '@/message'
 import {useAuthStore} from '@/stores/auth'
 import {useBaseStore} from '@/stores/base'
 import {useConfigStore} from '@/stores/config'
+import {resolveTaskIdentifier, taskIdFromRouteParam} from '@/client/queries/tasks'
 
 import Login from '@/views/user/Login.vue'
 import Register from '@/views/user/Register.vue'
@@ -219,7 +220,7 @@ const router = createRouter({
 			path: '/tasks/:id',
 			name: 'task.detail',
 			component: () => import('@/views/tasks/TaskDetailView.vue'),
-			props: route => ({ taskId: Number(route.params.id as string) }),
+			props: route => ({ taskId: taskIdFromRouteParam(route.params.id as string) }),
 		},
 		{
 			path: '/tasks/by/upcoming',
@@ -671,6 +672,17 @@ router.beforeEach(async (to, from) => {
 
 	if(!to.fullPath.endsWith(to.hash)) {
 		return to.fullPath + to.hash
+	}
+})
+
+// /tasks/VI-11 opens the same task as /tasks/1564, so the identifier is resolved before the view loads.
+router.beforeResolve(async to => {
+	if (to.name !== 'task.detail' || taskIdFromRouteParam(to.params.id as string) > 0) {
+		return
+	}
+	if (await resolveTaskIdentifier(to.params.id as string) === 0) {
+		// Keeps the address the user typed instead of showing the 404 page at /
+		return {name: 'not-found', params: {pathMatch: to.path.substring(1).split('/')}}
 	}
 })
 
