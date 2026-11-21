@@ -53,7 +53,7 @@
 			
 			<h3>
 				<RouterLink
-					:to="{ name: 'task.detail', params: {id: task.id} }"
+					:to="getTaskRoute(task)"
 					class="kanban-card__title-link"
 					draggable="false"
 					target="_blank"
@@ -136,7 +136,7 @@ import Labels from '@/components/tasks/partials/Labels.vue'
 import ChecklistSummary from './ChecklistSummary.vue'
 import CommentCount from './CommentCount.vue'
 
-import {getHexColor, getTaskIdentifier} from '@/helpers/task'
+import {getHexColor, getTaskIdentifier, getTaskRoute} from '@/helpers/task'
 import type {Task as ITask} from '@/client/generated'
 import type {TaskResponse} from '@/client/queries/tasks'
 import {SUPPORTED_IMAGE_SUFFIX} from '@/helpers/attachmentPreview'
@@ -216,7 +216,7 @@ async function toggleTaskDone(task: TaskResponse) {
 }
 
 function openTaskDetail() {
-	openTaskInNewTab(router, props.task.id)
+	openTaskInNewTab(router, props.task)
 }
 
 const coverImageBlobUrl = ref<string | null>(null)

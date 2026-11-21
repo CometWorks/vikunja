@@ -657,7 +657,7 @@ import {klona} from 'klona/lite'
 import isEqual from 'fast-deep-equal'
 
 import {useTask} from '@/composables/useTask'
-import {getHexColor} from '@/helpers/task'
+import {getHexColor, getTaskRoute} from '@/helpers/task'
 import {createTaskDraft, mergeTask} from '@/helpers/task'
 
 import type {Task as ITask} from '@/client/generated'
@@ -1226,10 +1226,7 @@ async function duplicateCurrentTask() {
 	const duplicatedTask = await duplicateTask.mutateAsync(task.value.id!)
 	if (duplicatedTask) {
 		success({message: t('task.detail.duplicateSuccess')})
-		router.push({
-			name: 'task.detail',
-			params: {id: duplicatedTask.id},
-		})
+		router.push(getTaskRoute(duplicatedTask))
 	}
 }
 

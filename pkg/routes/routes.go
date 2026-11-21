@@ -476,6 +476,8 @@ func registerAPIRoutesV2(e *echo.Echo, a *echo.Group, noAuthRateLimit, refreshRa
 	// Must come after rate limiting: the gate does a per-request admin DB read,
 	// so an unauthenticated flood to /api/v2/admin/* would otherwise be unbounded.
 	a.Use(gateV2AdminRoutes())
+	// Task routes take /tasks/VI-11 as well as /tasks/1564
+	a.Use(ResolveTaskIdentifier())
 
 	api := apiv2.NewAPI(e, a)
 
@@ -576,6 +578,9 @@ func registerAPIRoutes(a *echo.Group, noAuthRateLimit, refreshRateLimit echo.Mid
 
 	// Middleware to collect metrics
 	setupMetricsMiddleware(a)
+
+	// Task routes take /tasks/VI-11 as well as /tasks/1564
+	a.Use(ResolveTaskIdentifier())
 
 	a.GET("/token/test", apiv1.TestToken)
 	a.POST("/token/test", apiv1.CheckToken)

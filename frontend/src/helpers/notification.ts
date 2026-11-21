@@ -1,7 +1,7 @@
 import type {DatabaseNotification, User, Task, Project, Team} from '@/client/generated'
 import type {RouteLocationRaw} from 'vue-router'
 import {getDisplayName} from '@/helpers/user'
-import {getTaskIdentifier} from '@/helpers/task'
+import {getTaskIdentifier, getTaskRoute} from '@/helpers/task'
 
 export const NOTIFICATION_NAMES = {
 	'TASK_COMMENT': 'task.comment',
@@ -76,8 +76,10 @@ export function notificationRoute(n: DatabaseNotification): RouteLocationRaw | n
 		NOTIFICATION_NAMES.TASK_CREATED,
 	] as string[]
 	if (taskNames.includes(n.name ?? '')) {
-		const id = record(payload.task).id
-		return typeof id === 'number' && id > 0 ? {name: 'task.detail', params: {id}} : null
+		const {id, identifier} = record(payload.task)
+		return typeof id === 'number' && id > 0
+			? getTaskRoute({id, identifier: typeof identifier === 'string' ? identifier : undefined})
+			: null
 	}
 	if (n.name === NOTIFICATION_NAMES.PROJECT_CREATED) {
 		const projectId = record(payload.project).id

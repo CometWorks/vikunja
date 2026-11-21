@@ -148,6 +148,7 @@ import {parseTaskText, PREFIXES, PrefixMode} from '@/modules/quickAddMagic'
 import {success} from '@/message'
 
 import type {Task as ITask, Label} from '@/client/generated'
+import {getTaskRoute} from '@/helpers/task'
 import type {TaskFilterParams} from '@/client/queries/tasks'
 import {
 	createProjectDraft,
@@ -555,14 +556,11 @@ async function doAction(type: ACTION_TYPE, item: QuickActionItem) {
 		case ACTION_TYPE.TASK:
 			if (isQuickAddMode) {
 				const channel = new BroadcastChannel('vikunja-task-updates')
-				channel.postMessage({type: 'task-created-open', taskId: (item as ITask).id})
+				channel.postMessage({type: 'task-created-open', taskId: getTaskRoute(item as ITask).params.id})
 				channel.close()
 				window.quickEntry?.showMainWindow()
 			} else {
-				await router.push({
-					name: 'task.detail',
-					params: {id: (item as ITask).id},
-				})
+				await router.push(getTaskRoute(item as ITask))
 			}
 			closeQuickActions()
 			break
@@ -646,7 +644,7 @@ async function newTask() {
 		return
 	}
 
-	await router.push({name: 'task.detail', params: {id: task.id}})
+	await router.push(getTaskRoute(task))
 }
 
 async function newProject() {

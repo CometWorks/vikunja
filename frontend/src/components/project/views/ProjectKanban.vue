@@ -467,7 +467,7 @@ const router = useRouter()
 const touchStartY = ref(0)
 
 function openTask(task: TaskResponse) {
-	openTaskInNewTab(router, task.id)
+	openTaskInNewTab(router, task)
 }
 
 function onHandleTouchStart(e: TouchEvent) {

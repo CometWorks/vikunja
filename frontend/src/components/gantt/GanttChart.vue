@@ -566,7 +566,7 @@ function updateGanttTask(id: string, newStart: Date, newEnd: Date) {
 }
 
 function openTask(bar: GanttBarModel) {
-	openTaskInNewTab(router, bar.id)
+	openTaskInNewTab(router, props.tasks.get(Number(bar.id)) ?? {id: Number(bar.id)})
 }
 
 // Double-click and drag detection

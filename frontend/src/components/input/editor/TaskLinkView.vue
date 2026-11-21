@@ -28,7 +28,7 @@ function open(task: TaskResponse) {
 	if (props.editor.isEditable) {
 		return
 	}
-	openTaskInNewTab(router, task.id)
+	openTaskInNewTab(router, task)
 }
 </script>
 

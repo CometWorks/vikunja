@@ -373,7 +373,7 @@ import type {TaskResponse} from '@/client/queries/tasks'
 import {useTableSort} from '@/composables/useTableSort'
 import {useDelayedLoading} from '@/composables/useDelayedLoading'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
-import {getTaskIdentifier} from '@/helpers/task'
+import {getTaskIdentifier, getTaskRoute} from '@/helpers/task'
 import { camelCase } from 'change-case'
 import {isSavedFilterProject} from '@/client/queries/projects'
 import {useProjects} from '@/composables/useProjects'
@@ -449,13 +449,7 @@ function setActiveColumnsSortParam() {
 }
 
 const taskDetailRoutes = computed(() => Object.fromEntries(
-	tasks.value.map(({id}) => ([
-		id,
-		{
-			name: 'task.detail',
-			params: {id},
-		},
-	])),
+	tasks.value.map(task => [task.id, getTaskRoute(task)]),
 ))
 </script>
 
