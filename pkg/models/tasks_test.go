@@ -18,6 +18,7 @@ package models
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -1730,4 +1731,19 @@ func TestGetTaskByIDSimpleMemo(t *testing.T) {
 	afterWrite, err := GetTaskByIDSimple(s, 1)
 	require.NoError(t, err)
 	assert.Equal(t, behindTheBackTitle, afterWrite.Title)
+}
+
+func TestTask_GetFrontendURL(t *testing.T) {
+	for identifier, segment := range map[string]string{
+		"VI-11":  "VI-11",
+		"A1B2-3": "A1B2-3",
+		"#11":    "42",
+		"":       "42",
+		"123-11": "42", // an all-digit prefix reads as a project id
+		"ÅÄ-11":  "42",
+		"V I-11": "42",
+	} {
+		task := &Task{ID: 42, Identifier: identifier}
+		assert.True(t, strings.HasSuffix(task.GetFrontendURL(), "tasks/"+segment), identifier)
+	}
 }

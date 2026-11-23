@@ -125,7 +125,7 @@
 							@update:modelValue="toggleTaskDone({...task, done: $event})"
 						/>
 						<RouterLink
-							:to="{ name: 'task.detail', params: { id: task.id } }"
+							:to="getTaskRoute(task)"
 							target="_blank"
 							rel="noopener"
 							:class="{ 'is-strikethrough': task.done}"
@@ -192,7 +192,7 @@ import {useI18n} from 'vue-i18n'
 import {useTasks} from '@/composables/useTasks'
 import {useDelayedLoading} from '@/composables/useDelayedLoading'
 import {useCreateTaskRelationMutation, useDeleteTaskRelationMutation, useUpdateTaskMutation} from '@/client/queries/taskMutations'
-import {createTaskDraft, getTaskIdentifier} from '@/helpers/task'
+import {createTaskDraft, getTaskIdentifier, getTaskRoute} from '@/helpers/task'
 import type {Task as ITask} from '@/client/generated'
 import type {TaskRelation as ITaskRelation} from '@/client/generated'
 import {RELATION_KINDS, type IRelationKind} from '@/types/IRelationKind'

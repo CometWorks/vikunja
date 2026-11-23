@@ -212,8 +212,41 @@ func (t *Task) GetFullIdentifier() string {
 	return "#" + strconv.FormatInt(t.Index, 10)
 }
 
+// linkableTaskIdentifier matches the identifiers that task links and task API paths can use
+// in place of the id: an ASCII letters and digits project prefix, which can't be only digits
+// because an all-digit project segment is read as a project id.
+// Keep in sync with LINKABLE_TASK_IDENTIFIER in frontend/src/helpers/task.ts.
+var linkableTaskIdentifier = regexp.MustCompile(`^([A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*)-([0-9]+)$`)
+
+// GetFrontendURL links the task by its identifier (VI-11) when it has a linkable one, by its id otherwise.
 func (t *Task) GetFrontendURL() string {
-	return config.ServicePublicURL.GetString() + "tasks/" + strconv.FormatInt(t.ID, 10)
+	segment := strconv.FormatInt(t.ID, 10)
+	if linkableTaskIdentifier.MatchString(t.Identifier) {
+		segment = t.Identifier
+	}
+	return config.ServicePublicURL.GetString() + "tasks/" + segment
+}
+
+// GetTaskIDByIdentifier returns the id of the task named by an identifier like "VI-11", in any case.
+// The bool is false when the value isn't a linkable identifier, so the caller can treat it as something else.
+func GetTaskIDByIdentifier(s *xorm.Session, identifier string) (id int64, ok bool, err error) {
+	match := linkableTaskIdentifier.FindStringSubmatch(identifier)
+	if match == nil {
+		return 0, false, nil
+	}
+	index, err := strconv.ParseInt(match[2], 10, 64)
+	if err != nil {
+		return 0, true, ErrTaskDoesNotExist{}
+	}
+	project, err := GetProjectSimpleByIdentifier(s, match[1])
+	if IsErrProjectDoesNotExist(err) {
+		return 0, true, ErrTaskDoesNotExist{}
+	}
+	if err != nil {
+		return 0, true, err
+	}
+	task, err := GetTaskByProjectAndIndex(s, project.ID, index)
+	return task.ID, true, err
 }
 
 func (t *Task) isRepeating() bool {

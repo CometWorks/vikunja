@@ -49,12 +49,18 @@ export function getTaskIdentifier(task: Pick<Task, 'identifier' | 'index'> | nul
 		: `#${task.index ?? 0}`
 }
 
-// Links name the task by its identifier (VI-11) when its project has one, by its id otherwise.
-// The API reads an all-digit project segment as a project id, so those identifiers can't be used either.
-export function getTaskUrl(router: Router, task: Pick<Task, 'id' | 'identifier' | 'index'>): string {
-	const identifier = getTaskIdentifier(task)
-	const id = identifier.startsWith('#') || /^\d+-/.test(identifier) ? task.id! : identifier
-	return new URL(router.resolve({name: 'task.detail', params: {id}}).href, window.location.href).href
+// Links name the task by its identifier (VI-11) when the project prefix is ASCII letters and digits,
+// by its id otherwise. The API reads an all-digit project segment as a project id, so that can't be used either.
+// Keep in sync with linkableTaskIdentifier in pkg/models/tasks.go.
+export const LINKABLE_TASK_IDENTIFIER = /^[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*-\d+$/
+
+export function getTaskRoute(task: Pick<Task, 'id' | 'identifier'>) {
+	const id = LINKABLE_TASK_IDENTIFIER.test(task.identifier ?? '') ? task.identifier! : task.id!
+	return {name: 'task.detail', params: {id}}
+}
+
+export function getTaskUrl(router: Router, task: Pick<Task, 'id' | 'identifier'>): string {
+	return new URL(router.resolve(getTaskRoute(task)).href, window.location.href).href
 }
 
 export function getHexColor(color?: string): string | undefined {

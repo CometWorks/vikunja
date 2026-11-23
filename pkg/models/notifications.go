@@ -77,12 +77,13 @@ func (n *ReminderDueNotification) ToMail(lang string) *notifications.Mail {
 		return nil
 	}
 
+	n.Task.setIdentifier(n.Project)
 	return notifications.NewMail().
 		IncludeLinkToSettings(lang).
 		To(n.User.Email).
 		Greeting(i18n.T(lang, "notifications.greeting", n.User.GetName())).
 		Line(i18n.T(lang, "notifications.task.reminder.message", notifications.EscapeMarkdown(n.Task.Title), notifications.EscapeMarkdown(n.Project.Title))).
-		Action(i18n.T(lang, "notifications.common.actions.open_task"), config.ServicePublicURL.GetString()+"tasks/"+strconv.FormatInt(n.Task.ID, 10)).
+		Action(i18n.T(lang, "notifications.common.actions.open_task"), n.Task.GetFrontendURL()).
 		Line(i18n.T(lang, "notifications.common.have_nice_day"))
 }
 
@@ -385,12 +386,13 @@ type UndoneTaskOverdueNotification struct {
 // ToMail returns the mail notification for UndoneTaskOverdueNotification
 func (n *UndoneTaskOverdueNotification) ToMail(lang string) *notifications.Mail {
 	until := time.Until(n.Task.DueDate).Round(1*time.Hour) * -1
+	n.Task.setIdentifier(n.Project)
 	return notifications.NewMail().
 		IncludeLinkToSettings(lang).
 		Subject(i18n.T(lang, "notifications.task.overdue.subject", n.Task.Title, n.Project.Title)).
 		Greeting(i18n.T(lang, "notifications.greeting", n.User.GetName())).
 		Line(i18n.T(lang, "notifications.task.overdue.message", notifications.EscapeMarkdown(n.Task.Title), notifications.EscapeMarkdown(n.Project.Title), getOverdueSinceString(until, n.User.Language))).
-		Action(i18n.T(lang, "notifications.common.actions.open_task"), config.ServicePublicURL.GetString()+"tasks/"+strconv.FormatInt(n.Task.ID, 10)).
+		Action(i18n.T(lang, "notifications.common.actions.open_task"), n.Task.GetFrontendURL()).
 		Line(i18n.T(lang, "notifications.common.have_nice_day"))
 }
 
@@ -433,8 +435,9 @@ func (n *UndoneTasksOverdueNotification) overdueSection(lang, heading string, ta
 
 	section := "**" + i18n.T(lang, heading) + "**\n"
 	for _, task := range sortedTasks {
+		task.setIdentifier(n.Projects[task.ProjectID])
 		until := time.Until(task.DueDate).Round(1*time.Hour) * -1
-		section += `* [` + notifications.EscapeMarkdown(task.Title) + `](` + config.ServicePublicURL.GetString() + "tasks/" + strconv.FormatInt(task.ID, 10) + `) (` + notifications.EscapeMarkdown(n.Projects[task.ProjectID].Title) + `), ` + i18n.T(lang, "notifications.task.overdue.overdue", getOverdueSinceString(until, n.User.Language)) + "\n"
+		section += `* [` + notifications.EscapeMarkdown(task.Title) + `](` + task.GetFrontendURL() + `) (` + notifications.EscapeMarkdown(n.Projects[task.ProjectID].Title) + `), ` + i18n.T(lang, "notifications.task.overdue.overdue", getOverdueSinceString(until, n.User.Language)) + "\n"
 	}
 
 	return section

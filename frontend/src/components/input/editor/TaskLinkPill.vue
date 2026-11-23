@@ -39,9 +39,9 @@
 </template>
 
 <script lang="ts" setup>
-import {computed, inject} from 'vue'
+import {computed, inject, ref, watch} from 'vue'
 
-import type {TaskResponse} from '@/client/queries/tasks'
+import {resolveTaskIdentifier, type TaskResponse} from '@/client/queries/tasks'
 import {getTaskIdentifier} from '@/helpers/task'
 import {getProjectTitle} from '@/helpers/getProjectTitle'
 import {parseTaskIdFromUrl} from '@/helpers/parseTaskIdFromUrl'
@@ -72,11 +72,22 @@ const providedProjectId = inject(taskLinkCurrentProjectIdKey, null)
 
 const currentProjectId = computed(() => providedProjectId?.value ?? (baseStore.currentProjectId || undefined))
 
-const taskId = computed(() => parseTaskIdFromUrl(props.href))
+const parsedId = computed(() => parseTaskIdFromUrl(props.href))
+// null while an identifier like "VI-11" is being resolved, 0 when it can't be
+const taskId = ref<number | null>(null)
+watch(parsedId, async parsed => {
+	if (typeof parsed !== 'string') {
+		taskId.value = parsed ?? 0
+		return
+	}
+	taskId.value = null
+	taskId.value = await resolveTaskIdentifier(parsed)
+}, {immediate: true})
 const query = useTask(() => taskId.value ?? 0)
 const state = computed<PillState>(() => {
-	if (taskId.value === null) return {status: 'invalid'}
+	if (parsedId.value === null) return {status: 'invalid'}
 	if (query.data.value) return {status: 'loaded', task: query.data.value}
+	if (taskId.value === 0) return {status: 'error'}
 	return {status: query.isError.value ? 'error' : 'loading'}
 })
 

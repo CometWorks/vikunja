@@ -208,7 +208,7 @@
 import {ref, watch, onMounted, computed} from 'vue'
 import {useI18n} from 'vue-i18n'
 
-import {getHexColor} from '@/helpers/task'
+import {getHexColor, getTaskRoute} from '@/helpers/task'
 import type {Task as ITask} from '@/client/generated'
 
 import PriorityLabel from '@/components/tasks/partials/PriorityLabel.vue'
@@ -288,10 +288,7 @@ const showProjectSeparately = computed(() => !props.showProject
 
 const {currentProject} = useCurrentProject()
 
-const taskDetailRoute = computed(() => ({
-	name: 'task.detail',
-	params: {id: task.value.id},
-}))
+const taskDetailRoute = computed(() => getTaskRoute(task.value))
 
 function updateDueDate() {
 	if (!task.value.due_date) {

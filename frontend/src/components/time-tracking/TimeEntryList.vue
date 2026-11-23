@@ -53,7 +53,7 @@
 						<td v-if="!hideLabelColumn">
 							<RouterLink
 								v-if="row.entry.task_id > 0"
-								:to="{ name: 'task.detail', params: { id: row.entry.task_id } }"
+								:to="row.taskRoute"
 								target="_blank"
 								rel="noopener"
 							>
@@ -127,6 +127,7 @@ import {formatDate} from '@/helpers/time/formatDate'
 import {parseDateOrNull} from '@/helpers/parseDateOrNull'
 import {useTimeFormat} from '@/composables/useTimeFormat'
 import {TIME_FORMAT} from '@/constants/timeFormat'
+import {getTaskRoute} from '@/helpers/task'
 
 import type {TaskResponse} from '@/client/queries/tasks'
 import type {TimeEntryResponse as ITimeEntry} from '@/client/queries/timeEntries'
@@ -196,6 +197,7 @@ const rows = computed(() => props.entries.map(entry => {
 		projectChain: ancestors.map(p => ({id: p.id, title: getProjectTitle(p)})),
 		taskIdentifier: task ? (task.identifier || `#${task.index}`) : (entry.task_id > 0 ? `#${entry.task_id}` : ''),
 		taskTitle: task?.title ?? '',
+		taskRoute: getTaskRoute(task ?? {id: entry.task_id}),
 		seconds: entrySeconds(entry),
 	}
 }))

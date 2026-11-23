@@ -67,3 +67,30 @@ func ResolveProjectIdentifier() echo.MiddlewareFunc {
 		}
 	}
 }
+
+// ResolveTaskIdentifier accepts a task identifier (e.g. "VI-11") in the :projecttask and :task
+// path params and rewrites it to the numeric task id, so task URLs can name tasks the way people do.
+func ResolveTaskIdentifier() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			values := c.PathValues()
+			for i, v := range values {
+				if v.Name != "projecttask" && v.Name != "task" {
+					continue
+				}
+				s := db.NewSession()
+				id, ok, err := models.GetTaskIDByIdentifier(s, v.Value)
+				_ = s.Close()
+				if !ok {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				values[i].Value = strconv.FormatInt(id, 10)
+			}
+			c.SetPathValues(values)
+			return next(c)
+		}
+	}
+}

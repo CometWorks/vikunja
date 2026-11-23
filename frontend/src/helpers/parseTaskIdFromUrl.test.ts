@@ -18,6 +18,8 @@ describe('parseTaskIdFromUrl', () => {
 
 	it('parses a relative task url', () => {
 		expect(parseTaskIdFromUrl('/tasks/123')).toBe(123)
+		expect(parseTaskIdFromUrl('/tasks/VI-11')).toBe('VI-11')
+		expect(parseTaskIdFromUrl('http://localhost:3000/tasks/vi-11')).toBe('vi-11')
 	})
 
 	it('ignores query string and hash after the id', () => {
@@ -33,6 +35,8 @@ describe('parseTaskIdFromUrl', () => {
 	it('rejects non-task routes and malformed ids', () => {
 		expect(parseTaskIdFromUrl('/tasks/abc')).toBeNull()
 		expect(parseTaskIdFromUrl('/tasks/12abc')).toBeNull()
+		expect(parseTaskIdFromUrl('/tasks/123-4')).toBeNull()
+		expect(parseTaskIdFromUrl('/tasks/VI-11/edit')).toBeNull()
 		expect(parseTaskIdFromUrl('/tasks/12/edit')).toBeNull()
 		expect(parseTaskIdFromUrl('/tasks/')).toBeNull()
 		expect(parseTaskIdFromUrl('/tasks/0')).toBeNull()
