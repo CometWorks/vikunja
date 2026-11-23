@@ -1,5 +1,6 @@
 import {getFullBaseUrl} from '@/helpers/getFullBaseUrl'
 import {useConfigStore} from '@/stores/config'
+import {LINKABLE_TASK_IDENTIFIER} from '@/helpers/task'
 
 interface AppBase {
 	origin: string
@@ -38,9 +39,9 @@ function getAcceptedBases(): AppBase[] {
 	return bases
 }
 
-// Task id when `href` is this app's task detail route (current origin or configured
-// frontend url, base path aware), else null.
-export function parseTaskIdFromUrl(href: string): number | null {
+// Task id, or a task identifier like "VI-11", when `href` is this app's task detail route
+// (current origin or configured frontend url, base path aware), else null.
+export function parseTaskIdFromUrl(href: string): number | string | null {
 	if (!href) {
 		return null
 	}
@@ -63,6 +64,9 @@ export function parseTaskIdFromUrl(href: string): number | null {
 		}
 
 		const rest = url.pathname.slice(prefix.length)
+		if (LINKABLE_TASK_IDENTIFIER.test(rest)) {
+			return rest
+		}
 		if (!/^\d+$/.test(rest)) {
 			continue
 		}

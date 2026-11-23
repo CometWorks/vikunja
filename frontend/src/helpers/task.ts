@@ -52,8 +52,10 @@ export function getTaskIdentifier(task: Pick<Task, 'identifier' | 'index'> | nul
 // Links name the task by its identifier (VI-11) when the project prefix is ASCII letters and digits,
 // by its id otherwise. The API reads an all-digit project segment as a project id, so that can't be used either.
 // Keep in sync with linkableTaskIdentifier in pkg/models/tasks.go.
+export const LINKABLE_TASK_IDENTIFIER = /^[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*-\d+$/
+
 export function getTaskRoute(task: Pick<Task, 'id' | 'identifier'>) {
-	const id = /^[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*-\d+$/.test(task.identifier ?? '') ? task.identifier! : task.id!
+	const id = LINKABLE_TASK_IDENTIFIER.test(task.identifier ?? '') ? task.identifier! : task.id!
 	return {name: 'task.detail', params: {id}}
 }
 

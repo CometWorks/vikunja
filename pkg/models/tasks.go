@@ -215,6 +215,7 @@ func (t *Task) GetFullIdentifier() string {
 // linkableTaskIdentifier matches the identifiers that task links and task API paths can use
 // in place of the id: an ASCII letters and digits project prefix, which can't be only digits
 // because an all-digit project segment is read as a project id.
+// Keep in sync with LINKABLE_TASK_IDENTIFIER in frontend/src/helpers/task.ts.
 var linkableTaskIdentifier = regexp.MustCompile(`^([A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*)-([0-9]+)$`)
 
 // GetFrontendURL links the task by its identifier (VI-11) when it has a linkable one, by its id otherwise.
